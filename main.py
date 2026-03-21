@@ -16,6 +16,7 @@ app.add_middleware(
 )
 
 LAND_API_KEY = "6F8D2670-8C8E-3958-AE79-9645DCE6BB0F"
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
 ORDINANCE = {
     "서울특별시": {
@@ -300,7 +301,7 @@ class AnalyzeRequest(BaseModel):
 
 @app.get("/")
 def root():
-    return FileResponse("index.html")
+    return FileResponse(os.path.join(BASE_DIR, "index.html"))
 
 
 @app.get("/health")
