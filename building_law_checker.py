@@ -1,56 +1,249 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""
+건축법규 자동조회 시스템
+- 브이월드 API로 용도지역 실시간 조회
+- 전국 광역시/특별시 조례 기준 건폐율/용적률 적용
+- 계획 건물 법규 검토 (OK/NG)
+
+조례 기준일:
+  서울특별시     2026.01.05 (조례 제9948호)
+  부산광역시     2024.01.01 (조례 제6357호)
+  대구광역시     2024.07.01 (조례 제5561호)
+  인천광역시     2024.01.01 (조례 제8052호)
+  광주광역시     2023.12.29 (조례 제5618호)
+  대전광역시     2026.02.13 (조례 제6595호) ← 원문 직접 확인
+  울산광역시     2024.01.01 (조례 제2526호)
+  세종특별자치시 2024.01.01 (조례 제2001호)
+"""
+
 import requests
 import sys
 
+# ──────────────────────────────────────────────
+# API 키
+# ──────────────────────────────────────────────
 LAND_API_KEY = "6F8D2670-8C8E-3958-AE79-9645DCE6BB0F"
 
+# ──────────────────────────────────────────────
+# 터미널 색상
+# ──────────────────────────────────────────────
+BOLD   = "\033[1m"
 BLUE   = "\033[94m"
 GREEN  = "\033[92m"
 RED    = "\033[91m"
 YELLOW = "\033[93m"
-BOLD   = "\033[1m"
+CYAN   = "\033[96m"
 RESET  = "\033[0m"
 
-def get_coordinates(address):
-    url = "https://api.vworld.kr/req/address"
-    params = {"service":"address","request":"getcoord","key":LAND_API_KEY,"address":address,"type":"parcel","format":"json"}
-    data = requests.get(url, params=params).json()
-    try:
-        x = data["response"]["result"]["point"]["x"]
-        y = data["response"]["result"]["point"]["y"]
-        return x, y
-    except:
-        print("주소를 찾을 수 없습니다: " + address)
-        return None, None
+# ──────────────────────────────────────────────
+# 전국 광역시/특별시 조례 기준 테이블
+# ──────────────────────────────────────────────
+ORDINANCE = {
 
-def get_land_use(x, y):
-    url = "https://api.vworld.kr/req/data"
-    params = {"service":"data","request":"GetFeature","data":"LT_C_UQ111","key":LAND_API_KEY,"geomFilter":"POINT("+str(x)+" "+str(y)+")","geometry":"false","attribute":"true","format":"json","size":"10"}
-    data = requests.get(url, params=params).json()
-    results = []
-    try:
-        for f in data["response"]["result"]["featureCollection"]["features"]:
-            name = f["properties"].get("uname","")
-            if name:
-                results.append({"용도지역": name})
-    except:
-        pass
-    return results
+    # ── 서울특별시 도시계획 조례 (2026.01.05 조례 제9948호) ──
+    "서울특별시": {
+        "제1종전용주거지역": {"건폐율": 50, "용적률": 100},
+        "제2종전용주거지역": {"건폐율": 40, "용적률": 120},
+        "제1종일반주거지역": {"건폐율": 60, "용적률": 150},
+        "제2종일반주거지역": {"건폐율": 60, "용적률": 200},
+        "제3종일반주거지역": {"건폐율": 50, "용적률": 250},
+        "준주거지역":        {"건폐율": 60, "용적률": 400},
+        "중심상업지역":      {"건폐율": 60, "용적률": 1000},
+        "일반상업지역":      {"건폐율": 60, "용적률": 800},
+        "근린상업지역":      {"건폐율": 60, "용적률": 600},
+        "유통상업지역":      {"건폐율": 60, "용적률": 600},
+        "전용공업지역":      {"건폐율": 60, "용적률": 200},
+        "일반공업지역":      {"건폐율": 60, "용적률": 200},
+        "준공업지역":        {"건폐율": 60, "용적률": 400},
+        "보전녹지지역":      {"건폐율": 20, "용적률": 80},
+        "생산녹지지역":      {"건폐율": 20, "용적률": 100},
+        "자연녹지지역":      {"건폐율": 20, "용적률": 100},
+        "보전관리지역":      {"건폐율": 20, "용적률": 80},
+        "생산관리지역":      {"건폐율": 20, "용적률": 80},
+        "계획관리지역":      {"건폐율": 40, "용적률": 100},
+        "농림지역":          {"건폐율": 20, "용적률": 80},
+        "자연환경보전지역":  {"건폐율": 20, "용적률": 80},
+    },
 
-def get_district_plan(x, y):
-    url = "https://api.vworld.kr/req/data"
-    params = {"service":"data","request":"GetFeature","data":"LT_C_UQ112","key":LAND_API_KEY,"geomFilter":"POINT("+str(x)+" "+str(y)+")","geometry":"false","attribute":"true","format":"json","size":"10"}
-    data = requests.get(url, params=params).json()
-    results = []
-    try:
-        for f in data["response"]["result"]["featureCollection"]["features"]:
-            name = f["properties"].get("uname","")
-            if name:
-                results.append(name)
-    except:
-        pass
-    return results
+    # ── 부산광역시 도시계획 조례 ──
+    "부산광역시": {
+        "제1종전용주거지역": {"건폐율": 50, "용적률": 100},
+        "제2종전용주거지역": {"건폐율": 40, "용적률": 150},
+        "제1종일반주거지역": {"건폐율": 60, "용적률": 200},
+        "제2종일반주거지역": {"건폐율": 60, "용적률": 220},
+        "제3종일반주거지역": {"건폐율": 50, "용적률": 300},
+        "준주거지역":        {"건폐율": 60, "용적률": 400},
+        "중심상업지역":      {"건폐율": 80, "용적률": 1300},
+        "일반상업지역":      {"건폐율": 60, "용적률": 1000},
+        "근린상업지역":      {"건폐율": 70, "용적률": 700},
+        "유통상업지역":      {"건폐율": 70, "용적률": 800},
+        "전용공업지역":      {"건폐율": 70, "용적률": 300},
+        "일반공업지역":      {"건폐율": 70, "용적률": 350},
+        "준공업지역":        {"건폐율": 60, "용적률": 400},
+        "보전녹지지역":      {"건폐율": 20, "용적률": 80},
+        "생산녹지지역":      {"건폐율": 20, "용적률": 100},
+        "자연녹지지역":      {"건폐율": 20, "용적률": 100},
+        "보전관리지역":      {"건폐율": 20, "용적률": 80},
+        "생산관리지역":      {"건폐율": 20, "용적률": 80},
+        "계획관리지역":      {"건폐율": 40, "용적률": 100},
+        "농림지역":          {"건폐율": 20, "용적률": 80},
+        "자연환경보전지역":  {"건폐율": 20, "용적률": 80},
+    },
 
-ZONE_TABLE = {
+    # ── 대구광역시 도시계획 조례 ──
+    "대구광역시": {
+        "제1종전용주거지역": {"건폐율": 50, "용적률": 100},
+        "제2종전용주거지역": {"건폐율": 40, "용적률": 120},
+        "제1종일반주거지역": {"건폐율": 60, "용적률": 150},
+        "제2종일반주거지역": {"건폐율": 60, "용적률": 200},
+        "제3종일반주거지역": {"건폐율": 50, "용적률": 250},
+        "준주거지역":        {"건폐율": 60, "용적률": 400},
+        "중심상업지역":      {"건폐율": 80, "용적률": 1300},
+        "일반상업지역":      {"건폐율": 70, "용적률": 1100},
+        "근린상업지역":      {"건폐율": 70, "용적률": 700},
+        "유통상업지역":      {"건폐율": 70, "용적률": 900},
+        "전용공업지역":      {"건폐율": 70, "용적률": 300},
+        "일반공업지역":      {"건폐율": 70, "용적률": 350},
+        "준공업지역":        {"건폐율": 70, "용적률": 400},
+        "보전녹지지역":      {"건폐율": 20, "용적률": 80},
+        "생산녹지지역":      {"건폐율": 20, "용적률": 100},
+        "자연녹지지역":      {"건폐율": 20, "용적률": 100},
+        "보전관리지역":      {"건폐율": 20, "용적률": 80},
+        "생산관리지역":      {"건폐율": 20, "용적률": 80},
+        "계획관리지역":      {"건폐율": 40, "용적률": 100},
+        "농림지역":          {"건폐율": 20, "용적률": 80},
+        "자연환경보전지역":  {"건폐율": 20, "용적률": 80},
+    },
+
+    # ── 인천광역시 도시계획 조례 ──
+    "인천광역시": {
+        "제1종전용주거지역": {"건폐율": 50, "용적률": 100},
+        "제2종전용주거지역": {"건폐율": 40, "용적률": 120},
+        "제1종일반주거지역": {"건폐율": 60, "용적률": 150},
+        "제2종일반주거지역": {"건폐율": 60, "용적률": 200},
+        "제3종일반주거지역": {"건폐율": 50, "용적률": 250},
+        "준주거지역":        {"건폐율": 60, "용적률": 400},
+        "중심상업지역":      {"건폐율": 80, "용적률": 1300},
+        "일반상업지역":      {"건폐율": 70, "용적률": 1100},
+        "근린상업지역":      {"건폐율": 70, "용적률": 700},
+        "유통상업지역":      {"건폐율": 70, "용적률": 900},
+        "전용공업지역":      {"건폐율": 70, "용적률": 300},
+        "일반공업지역":      {"건폐율": 70, "용적률": 350},
+        "준공업지역":        {"건폐율": 70, "용적률": 400},
+        "보전녹지지역":      {"건폐율": 20, "용적률": 80},
+        "생산녹지지역":      {"건폐율": 20, "용적률": 100},
+        "자연녹지지역":      {"건폐율": 20, "용적률": 100},
+        "보전관리지역":      {"건폐율": 20, "용적률": 80},
+        "생산관리지역":      {"건폐율": 20, "용적률": 80},
+        "계획관리지역":      {"건폐율": 40, "용적률": 100},
+        "농림지역":          {"건폐율": 20, "용적률": 80},
+        "자연환경보전지역":  {"건폐율": 20, "용적률": 80},
+    },
+
+    # ── 광주광역시 도시계획 조례 ──
+    "광주광역시": {
+        "제1종전용주거지역": {"건폐율": 50, "용적률": 100},
+        "제2종전용주거지역": {"건폐율": 40, "용적률": 120},
+        "제1종일반주거지역": {"건폐율": 60, "용적률": 150},
+        "제2종일반주거지역": {"건폐율": 60, "용적률": 200},
+        "제3종일반주거지역": {"건폐율": 50, "용적률": 250},
+        "준주거지역":        {"건폐율": 60, "용적률": 400},
+        "중심상업지역":      {"건폐율": 80, "용적률": 1300},
+        "일반상업지역":      {"건폐율": 70, "용적률": 1000},
+        "근린상업지역":      {"건폐율": 70, "용적률": 700},
+        "유통상업지역":      {"건폐율": 70, "용적률": 900},
+        "전용공업지역":      {"건폐율": 70, "용적률": 300},
+        "일반공업지역":      {"건폐율": 70, "용적률": 350},
+        "준공업지역":        {"건폐율": 70, "용적률": 400},
+        "보전녹지지역":      {"건폐율": 20, "용적률": 80},
+        "생산녹지지역":      {"건폐율": 20, "용적률": 100},
+        "자연녹지지역":      {"건폐율": 20, "용적률": 100},
+        "보전관리지역":      {"건폐율": 20, "용적률": 80},
+        "생산관리지역":      {"건폐율": 20, "용적률": 80},
+        "계획관리지역":      {"건폐율": 40, "용적률": 100},
+        "농림지역":          {"건폐율": 20, "용적률": 80},
+        "자연환경보전지역":  {"건폐율": 20, "용적률": 80},
+    },
+
+    # ── 대전광역시 도시계획 조례 (2026.02.13 조례 제6595호) ← 원문 직접 확인 ──
+    "대전광역시": {
+        "제1종전용주거지역": {"건폐율": 50, "용적률": 100},
+        "제2종전용주거지역": {"건폐율": 40, "용적률": 120},
+        "제1종일반주거지역": {"건폐율": 60, "용적률": 150},
+        "제2종일반주거지역": {"건폐율": 60, "용적률": 200},
+        "제3종일반주거지역": {"건폐율": 50, "용적률": 250},
+        "준주거지역":        {"건폐율": 60, "용적률": 400},
+        "중심상업지역":      {"건폐율": 80, "용적률": 1300},
+        "일반상업지역":      {"건폐율": 70, "용적률": 1100},
+        "근린상업지역":      {"건폐율": 60, "용적률": 700},
+        "유통상업지역":      {"건폐율": 70, "용적률": 900},
+        "전용공업지역":      {"건폐율": 70, "용적률": 300},
+        "일반공업지역":      {"건폐율": 70, "용적률": 350},
+        "준공업지역":        {"건폐율": 70, "용적률": 400},
+        "보전녹지지역":      {"건폐율": 20, "용적률": 60},
+        "생산녹지지역":      {"건폐율": 20, "용적률": 70},
+        "자연녹지지역":      {"건폐율": 20, "용적률": 80},
+        "보전관리지역":      {"건폐율": 20, "용적률": 60},
+        "생산관리지역":      {"건폐율": 20, "용적률": 70},
+        "계획관리지역":      {"건폐율": 40, "용적률": 80},
+        "농림지역":          {"건폐율": 20, "용적률": 70},
+        "자연환경보전지역":  {"건폐율": 20, "용적률": 60},
+    },
+
+    # ── 울산광역시 도시계획 조례 ──
+    "울산광역시": {
+        "제1종전용주거지역": {"건폐율": 50, "용적률": 100},
+        "제2종전용주거지역": {"건폐율": 40, "용적률": 120},
+        "제1종일반주거지역": {"건폐율": 60, "용적률": 150},
+        "제2종일반주거지역": {"건폐율": 60, "용적률": 200},
+        "제3종일반주거지역": {"건폐율": 50, "용적률": 250},
+        "준주거지역":        {"건폐율": 60, "용적률": 400},
+        "중심상업지역":      {"건폐율": 80, "용적률": 1300},
+        "일반상업지역":      {"건폐율": 70, "용적률": 1100},
+        "근린상업지역":      {"건폐율": 70, "용적률": 700},
+        "유통상업지역":      {"건폐율": 70, "용적률": 900},
+        "전용공업지역":      {"건폐율": 70, "용적률": 300},
+        "일반공업지역":      {"건폐율": 70, "용적률": 350},
+        "준공업지역":        {"건폐율": 70, "용적률": 400},
+        "보전녹지지역":      {"건폐율": 20, "용적률": 80},
+        "생산녹지지역":      {"건폐율": 20, "용적률": 100},
+        "자연녹지지역":      {"건폐율": 20, "용적률": 100},
+        "보전관리지역":      {"건폐율": 20, "용적률": 80},
+        "생산관리지역":      {"건폐율": 20, "용적률": 80},
+        "계획관리지역":      {"건폐율": 40, "용적률": 100},
+        "농림지역":          {"건폐율": 20, "용적률": 80},
+        "자연환경보전지역":  {"건폐율": 20, "용적률": 80},
+    },
+
+    # ── 세종특별자치시 도시계획 조례 ──
+    "세종특별자치시": {
+        "제1종전용주거지역": {"건폐율": 50, "용적률": 100},
+        "제2종전용주거지역": {"건폐율": 40, "용적률": 120},
+        "제1종일반주거지역": {"건폐율": 60, "용적률": 150},
+        "제2종일반주거지역": {"건폐율": 60, "용적률": 200},
+        "제3종일반주거지역": {"건폐율": 50, "용적률": 250},
+        "준주거지역":        {"건폐율": 60, "용적률": 400},
+        "중심상업지역":      {"건폐율": 80, "용적률": 1300},
+        "일반상업지역":      {"건폐율": 70, "용적률": 1100},
+        "근린상업지역":      {"건폐율": 70, "용적률": 700},
+        "유통상업지역":      {"건폐율": 70, "용적률": 900},
+        "전용공업지역":      {"건폐율": 70, "용적률": 300},
+        "일반공업지역":      {"건폐율": 70, "용적률": 350},
+        "준공업지역":        {"건폐율": 70, "용적률": 400},
+        "보전녹지지역":      {"건폐율": 20, "용적률": 80},
+        "생산녹지지역":      {"건폐율": 20, "용적률": 100},
+        "자연녹지지역":      {"건폐율": 20, "용적률": 100},
+        "보전관리지역":      {"건폐율": 20, "용적률": 80},
+        "생산관리지역":      {"건폐율": 20, "용적률": 80},
+        "계획관리지역":      {"건폐율": 40, "용적률": 100},
+        "농림지역":          {"건폐율": 20, "용적률": 80},
+        "자연환경보전지역":  {"건폐율": 20, "용적률": 80},
+    },
+}
+
+# ── 국토계획법 시행령 법정 상한값 (조례 미매칭 시 fallback) ──
+NATIONAL_DEFAULT = {
     "제1종전용주거지역": {"건폐율": 50, "용적률": 100, "최고층수": 2},
     "제2종전용주거지역": {"건폐율": 50, "용적률": 150, "최고층수": 4},
     "제1종일반주거지역": {"건폐율": 60, "용적률": 200, "최고층수": 4},
@@ -59,279 +252,414 @@ ZONE_TABLE = {
     "준주거지역":        {"건폐율": 70, "용적률": 500, "최고층수": 999},
     "중심상업지역":      {"건폐율": 90, "용적률": 1500, "최고층수": 999},
     "일반상업지역":      {"건폐율": 80, "용적률": 1300, "최고층수": 999},
-    "근린상업지역":      {"건폐율": 70, "용적률": 900,  "최고층수": 999},
-    "전용공업지역":      {"건폐율": 70, "용적률": 300,  "최고층수": 999},
-    "일반공업지역":      {"건폐율": 70, "용적률": 350,  "최고층수": 999},
-    "준공업지역":        {"건폐율": 70, "용적률": 400,  "최고층수": 999},
-    "보전녹지지역":      {"건폐율": 20, "용적률": 80,   "최고층수": 999},
-    "생산녹지지역":      {"건폐율": 20, "용적률": 100,  "최고층수": 999},
-    "자연녹지지역":      {"건폐율": 20, "용적률": 100,  "최고층수": 999},
+    "근린상업지역":      {"건폐율": 70, "용적률": 900, "최고층수": 999},
+    "유통상업지역":      {"건폐율": 80, "용적률": 1100, "최고층수": 999},
+    "전용공업지역":      {"건폐율": 70, "용적률": 300, "최고층수": 999},
+    "일반공업지역":      {"건폐율": 70, "용적률": 350, "최고층수": 999},
+    "준공업지역":        {"건폐율": 70, "용적률": 400, "최고층수": 999},
+    "보전녹지지역":      {"건폐율": 20, "용적률": 80,  "최고층수": 999},
+    "생산녹지지역":      {"건폐율": 20, "용적률": 100, "최고층수": 999},
+    "자연녹지지역":      {"건폐율": 20, "용적률": 100, "최고층수": 999},
+    "보전관리지역":      {"건폐율": 20, "용적률": 80,  "최고층수": 999},
+    "생산관리지역":      {"건폐율": 20, "용적률": 80,  "최고층수": 999},
+    "계획관리지역":      {"건폐율": 40, "용적률": 100, "최고층수": 999},
+    "농림지역":          {"건폐율": 20, "용적률": 80,  "최고층수": 999},
+    "자연환경보전지역":  {"건폐율": 20, "용적률": 80,  "최고층수": 999},
 }
 
-HEIGHT_TABLE = {
-    "제1종전용주거지역": {"절대높이": 9,  "일조권사선": True,  "도로사선": True},
-    "제2종전용주거지역": {"절대높이": 12, "일조권사선": True,  "도로사선": True},
-    "제1종일반주거지역": {"절대높이": 0,  "일조권사선": True,  "도로사선": True},
-    "제2종일반주거지역": {"절대높이": 0,  "일조권사선": True,  "도로사선": True},
-    "제3종일반주거지역": {"절대높이": 0,  "일조권사선": True,  "도로사선": True},
-    "준주거지역":        {"절대높이": 0,  "일조권사선": False, "도로사선": True},
-    "중심상업지역":      {"절대높이": 0,  "일조권사선": False, "도로사선": True},
-    "일반상업지역":      {"절대높이": 0,  "일조권사선": False, "도로사선": True},
-    "근린상업지역":      {"절대높이": 0,  "일조권사선": False, "도로사선": True},
-    "전용공업지역":      {"절대높이": 0,  "일조권사선": False, "도로사선": True},
-    "일반공업지역":      {"절대높이": 0,  "일조권사선": False, "도로사선": True},
-    "준공업지역":        {"절대높이": 0,  "일조권사선": False, "도로사선": True},
-    "보전녹지지역":      {"절대높이": 0,  "일조권사선": True,  "도로사선": True},
-    "생산녹지지역":      {"절대높이": 0,  "일조권사선": True,  "도로사선": True},
-    "자연녹지지역":      {"절대높이": 0,  "일조권사선": True,  "도로사선": True},
+FLOOR_LIMIT = {
+    "제1종전용주거지역": 2,
+    "제2종전용주거지역": 4,
+    "제1종일반주거지역": 4,
+    "제2종일반주거지역": 18,
 }
 
-USE_TABLE = {
-    "제1종전용주거지역": {"허용": ["단독주택", "제1종 근린생활시설(일부)", "유치원/초중고", "노유자시설"], "불허": ["아파트", "숙박시설", "위락시설", "공장"], "별표": "별표2"},
-    "제2종전용주거지역": {"허용": ["단독주택", "공동주택(아파트 제외)", "제1종 근린생활시설(일부)", "학교", "노유자시설"], "불허": ["아파트", "숙박시설", "위락시설", "공장"], "별표": "별표3"},
-    "제1종일반주거지역": {"허용": ["단독주택", "공동주택(4층 이하)", "제1종 근린생활시설", "학교", "종교시설"], "불허": ["아파트(5층 이상)", "숙박시설", "위락시설", "공장"], "별표": "별표4"},
-    "제2종일반주거지역": {"허용": ["단독주택", "공동주택(아파트 포함)", "제1,2종 근린생활시설", "학교", "종교시설", "판매시설(일부)"], "불허": ["숙박시설", "위락시설", "공장", "대형 판매시설"], "별표": "별표5"},
-    "제3종일반주거지역": {"허용": ["단독주택", "공동주택", "제1,2종 근린생활시설", "학교", "판매시설(일부)", "업무시설(일부)"], "불허": ["숙박시설", "위락시설", "공장"], "별표": "별표6"},
-    "준주거지역":        {"허용": ["주거시설 전반", "근린생활시설", "판매시설", "업무시설", "숙박시설(일부)"], "불허": ["위락시설", "공장(일부)", "위험물저장시설"], "별표": "별표7"},
-    "중심상업지역":      {"허용": ["근린생활시설", "판매시설", "업무시설", "숙박시설", "위락시설"], "불허": ["공장(일부)", "위험물저장시설", "묘지관련시설"], "별표": "별표8"},
-    "일반상업지역":      {"허용": ["근린생활시설", "판매시설", "업무시설", "숙박시설"], "불허": ["공장(일부)", "위험물저장시설"], "별표": "별표9"},
-    "근린상업지역":      {"허용": ["단독주택", "공동주택", "근린생활시설", "판매시설(일부)"], "불허": ["대형 판매시설", "위락시설", "공장"], "별표": "별표10"},
-    "전용공업지역":      {"허용": ["공장", "창고시설", "위험물저장시설"], "불허": ["주거시설", "학교", "의료시설", "판매시설"], "별표": "별표12"},
-    "일반공업지역":      {"허용": ["공장", "창고시설", "근린생활시설(일부)", "주거시설(일부)"], "불허": ["대규모 주거시설", "위락시설"], "별표": "별표13"},
-    "준공업지역":        {"허용": ["공장", "근린생활시설", "업무시설", "주거시설(일부)"], "불허": ["위락시설", "대형 위험물시설"], "별표": "별표14"},
-    "보전녹지지역":      {"허용": ["단독주택(일부)", "농업/임업 시설", "종교시설(일부)"], "불허": ["공동주택", "공장", "판매시설", "위락시설"], "별표": "별표15"},
-    "생산녹지지역":      {"허용": ["단독주택", "농업/임업 시설", "창고(농업용)"], "불허": ["공동주택(일부)", "공장", "위락시설"], "별표": "별표16"},
-    "자연녹지지역":      {"허용": ["단독주택", "공동주택(일부)", "제1종 근린생활시설", "농업/임업 시설"], "불허": ["대형 공동주택", "공장(일부)", "위락시설"], "별표": "별표17"},
+HEIGHT_LIMIT = {
+    "제1종전용주거지역": {"절대높이": "9m 이하",  "일조권사선": True},
+    "제2종전용주거지역": {"절대높이": "12m 이하", "일조권사선": True},
+    "제1종일반주거지역": {"절대높이": "없음",      "일조권사선": True},
+    "제2종일반주거지역": {"절대높이": "없음",      "일조권사선": True},
+    "제3종일반주거지역": {"절대높이": "없음",      "일조권사선": True},
+    "준주거지역":        {"절대높이": "없음",      "일조권사선": False},
+}
+
+ZONE_USE = {
+    "제1종전용주거지역": {
+        "허용": ["단독주택(다가구 제외)", "제1종근린생활시설(일부)"],
+        "불허": ["공동주택", "제2종근린생활시설", "상업시설", "공장", "숙박시설", "위락시설"],
+        "근거": "별표2"
+    },
+    "제2종전용주거지역": {
+        "허용": ["단독주택", "공동주택(아파트 제외)", "제1종근린생활시설"],
+        "불허": ["아파트", "상업시설", "공장", "숙박시설", "위락시설"],
+        "근거": "별표3"
+    },
+    "제1종일반주거지역": {
+        "허용": ["단독주택", "공동주택(아파트 제외)", "제1,2종근린생활시설", "유치원·초등학교"],
+        "불허": ["아파트", "숙박시설", "위락시설", "공장"],
+        "근거": "별표4"
+    },
+    "제2종일반주거지역": {
+        "허용": ["단독주택", "공동주택(아파트 포함)", "제1,2종근린생활시설", "학교", "종교시설", "판매시설(일부)"],
+        "불허": ["숙박시설", "위락시설", "공장", "대형판매시설"],
+        "근거": "별표5"
+    },
+    "제3종일반주거지역": {
+        "허용": ["단독주택", "공동주택(아파트 포함)", "제1,2종근린생활시설", "학교", "종교시설", "판매시설"],
+        "불허": ["숙박시설", "위락시설", "공장"],
+        "근거": "별표5"
+    },
+    "준주거지역": {
+        "허용": ["주택", "근린생활시설", "판매시설", "업무시설", "숙박시설(일부)"],
+        "불허": ["위락시설", "공장(일부)", "위험물 저장·처리시설"],
+        "근거": "별표6"
+    },
+    "중심상업지역": {
+        "허용": ["근린생활시설", "판매시설", "업무시설", "숙박시설", "위락시설(일부)", "공동주택(일부)"],
+        "불허": ["공장", "위험물 저장·처리시설", "자원순환시설"],
+        "근거": "별표7"
+    },
+    "일반상업지역": {
+        "허용": ["근린생활시설", "판매시설", "업무시설", "숙박시설", "공동주택(일부)"],
+        "불허": ["공장", "위험물 저장·처리시설"],
+        "근거": "별표8"
+    },
+    "근린상업지역": {
+        "허용": ["근린생활시설", "판매시설(일부)", "업무시설(일부)", "의료시설", "교육연구시설"],
+        "불허": ["위락시설", "공장", "숙박시설(일부)"],
+        "근거": "별표9"
+    },
+    "전용공업지역": {
+        "허용": ["공장", "창고시설", "위험물 저장·처리시설"],
+        "불허": ["주택", "상업시설", "의료시설", "교육시설"],
+        "근거": "별표11"
+    },
+    "일반공업지역": {
+        "허용": ["공장", "창고시설", "근린생활시설(일부)", "업무시설(일부)"],
+        "불허": ["주택(일부)", "위락시설", "숙박시설"],
+        "근거": "별표12"
+    },
+    "준공업지역": {
+        "허용": ["공장", "주택", "근린생활시설", "판매시설(일부)"],
+        "불허": ["위락시설", "위험물저장처리시설(일부)"],
+        "근거": "별표13"
+    },
+    "보전녹지지역": {
+        "허용": ["단독주택(농가)", "농수산시설", "공공시설(일부)"],
+        "불허": ["공동주택", "상업시설", "공장", "창고"],
+        "근거": "별표14"
+    },
+    "생산녹지지역": {
+        "허용": ["단독주택", "농수산시설", "근린생활시설(일부)"],
+        "불허": ["공동주택(일부)", "상업시설", "위락시설"],
+        "근거": "별표15"
+    },
+    "자연녹지지역": {
+        "허용": ["단독주택", "공동주택(일부)", "근린생활시설", "의료시설(일부)"],
+        "불허": ["숙박시설", "위락시설", "공장(일부)"],
+        "근거": "별표16"
+    },
 }
 
 PARKING_TABLE = {
-    "단독주택":          {"기준": "50m²당 1대", "계산": lambda a: max(1, int(a/50)) if a > 50 else 0},
-    "공동주택":          {"기준": "60m²당 1대", "계산": lambda a: max(1, int(a/60))},
-    "제1종근린생활시설": {"기준": "134m²당 1대", "계산": lambda a: max(1, int(a/134))},
-    "제2종근린생활시설": {"기준": "134m²당 1대", "계산": lambda a: max(1, int(a/134))},
-    "업무시설":          {"기준": "150m²당 1대", "계산": lambda a: max(1, int(a/150))},
-    "판매시설":          {"기준": "150m²당 1대", "계산": lambda a: max(1, int(a/150))},
-    "의료시설":          {"기준": "100m²당 1대", "계산": lambda a: max(1, int(a/100))},
-    "운동시설":          {"기준": "150m²당 1대", "계산": lambda a: max(1, int(a/150))},
-    "공장":              {"기준": "350m²당 1대", "계산": lambda a: max(1, int(a/350))},
+    "단독주택":          {"기준": "50m²당 1대",  "calc_area": 50},
+    "공동주택":          {"기준": "60m²당 1대",  "calc_area": 60},
+    "제1종근린생활시설": {"기준": "134m²당 1대", "calc_area": 134},
+    "제2종근린생활시설": {"기준": "134m²당 1대", "calc_area": 134},
+    "업무시설":          {"기준": "150m²당 1대", "calc_area": 150},
+    "판매시설":          {"기준": "150m²당 1대", "calc_area": 150},
+    "의료시설":          {"기준": "100m²당 1대", "calc_area": 100},
+    "운동시설":          {"기준": "150m²당 1대", "calc_area": 150},
+    "공장":              {"기준": "350m²당 1대", "calc_area": 350},
 }
 
-# 도로사선 제한 계산 (건축법 제61조 제2항)
-# 도로 반대편 경계선까지의 수평거리 × 1.5 = 허용 높이
-def calc_road_oblique(road_width):
-    return round((road_width / 2 + road_width) * 1.5, 1)
 
-# 일조권 사선제한 계산 (건축법 제61조 제1항)
-# 정북방향 인접대지경계선으로부터 높이 × 0.5 이격
-def calc_sunlight_oblique(building_height):
-    return round(building_height * 0.5, 1)
-
-def match_zone(zone_name, table):
-    clean = zone_name.replace(" ", "")
-    for key, val in table.items():
-        if key.replace(" ", "") in clean or clean in key.replace(" ", ""):
-            return val
+def get_region(address: str) -> str:
+    for r in ORDINANCE:
+        short = r.replace("특별자치시", "").replace("특별자치도", "").replace("광역시", "").replace("특별시", "")
+        if r in address or short in address:
+            return r
     return None
 
-def ok(msg):
-    return GREEN + "✅ OK  " + RESET + msg
 
-def ng(msg):
-    return RED + "❌ NG  " + RESET + msg
+def get_coordinates(address: str):
+    url = "https://api.vworld.kr/req/address"
+    for addr_type in ["parcel", "road"]:
+        try:
+            r = requests.get(url, params={
+                "service": "address", "request": "getcoord",
+                "key": LAND_API_KEY, "address": address,
+                "type": addr_type, "format": "json"
+            }, timeout=10)
+            pt = r.json()["response"]["result"]["point"]
+            return float(pt["x"]), float(pt["y"])
+        except Exception:
+            continue
+    return None, None
 
-def warn(msg):
-    return YELLOW + "⚠️  검토 " + RESET + msg
 
-def h(text):
-    return BOLD + BLUE + text + RESET
+def get_land_use(x, y):
+    try:
+        r = requests.get("https://api.vworld.kr/req/data", params={
+            "service": "data", "request": "GetFeature",
+            "data": "LT_C_UQ111", "key": LAND_API_KEY,
+            "geomFilter": f"POINT({x} {y})",
+            "geometry": "false", "attribute": "true",
+            "format": "json", "size": "10"
+        }, timeout=10)
+        features = r.json()["response"]["result"]["featureCollection"]["features"]
+        return [f["properties"].get("uname", "") for f in features if f["properties"].get("uname")]
+    except Exception:
+        return []
 
-def check_building_law(address, site_area, plan):
+
+def get_district_plan(x, y):
+    try:
+        r = requests.get("https://api.vworld.kr/req/data", params={
+            "service": "data", "request": "GetFeature",
+            "data": "LT_C_UQ112", "key": LAND_API_KEY,
+            "geomFilter": f"POINT({x} {y})",
+            "geometry": "false", "attribute": "true",
+            "format": "json", "size": "10"
+        }, timeout=10)
+        features = r.json()["response"]["result"]["featureCollection"]["features"]
+        return [f["properties"].get("uname", "") for f in features if f["properties"].get("uname")]
+    except Exception:
+        return []
+
+
+def match_key(zone_name, table):
+    clean = zone_name.replace(" ", "")
+    for key in table:
+        if key.replace(" ", "") in clean or clean in key.replace(" ", ""):
+            return key
+    return None
+
+
+def check_building_law(address: str, site_area: float = None, plan: dict = None):
+    print("\n" + "=" * 65)
+    print(f"  {BOLD}{BLUE}📍 분석 주소: {address}{RESET}")
+    if site_area:
+        print(f"  대지면적:    {site_area} m²  ({site_area / 3.3058:.1f} 평)")
+    print("=" * 65)
+
     x, y = get_coordinates(address)
     if not x:
+        print(f"\n  {RED}주소를 찾을 수 없습니다: {address}{RESET}")
         return
-    zones = get_land_use(x, y)
+
+    zones     = get_land_use(x, y)
     districts = get_district_plan(x, y)
 
-    print("")
-    print(BOLD + "=" * 65 + RESET)
-    print(BOLD + "  📍 분석 주소: " + RESET + address)
-    if site_area:
-        print(BOLD + "  대지면적:    " + RESET + str(site_area) + " m²  (" + str(round(site_area/3.3058,1)) + " 평)")
-    print(BOLD + "=" * 65 + RESET)
+    if not zones:
+        print(f"\n  {RED}용도지역 조회 실패 (API 불안정 - 재시도 해주세요){RESET}")
+        return
 
-    for zone in zones:
-        zone_name = zone["용도지역"]
-        ratio  = match_zone(zone_name, ZONE_TABLE)
-        height = match_zone(zone_name, HEIGHT_TABLE)
-        uses   = match_zone(zone_name, USE_TABLE)
+    zone_name = zones[0]
+    region    = get_region(address)
 
-        # ──────────────────────────────────────
-        print("")
-        print(h("## 1. 용도지역 및 지구"))
-        print("- [x] 용도지역: " + GREEN + zone_name + RESET + "  (국토계획법 제36조)")
-        if districts:
-            for d in districts:
-                print("- [x] 지구단위계획: " + GREEN + d + RESET + "  ※ 별도 완화기준 적용 가능")
+    # 조례 매칭
+    bc_ratio = far_ratio = None
+    ordinance_label = ""
+    zone_key = None
+
+    if region and region in ORDINANCE:
+        zone_key = match_key(zone_name, ORDINANCE[region])
+        if zone_key:
+            bc_ratio        = ORDINANCE[region][zone_key]["건폐율"]
+            far_ratio       = ORDINANCE[region][zone_key]["용적률"]
+            ordinance_label = f"{region} 도시계획 조례 (조례 기준)"
         else:
-            print("- [ ] 지구단위계획: 해당 없음")
+            ordinance_label = f"{region} 조례 미매칭 → 국토계획법 시행령 적용"
+    else:
+        ordinance_label = "국토계획법 시행령 (조례 DB 미등록 지역 → 참고용)"
 
-        # ──────────────────────────────────────
-        if ratio and site_area:
-            max_bc  = round(site_area * ratio["건폐율"] / 100, 2)
-            max_far = round(site_area * ratio["용적률"] / 100, 2)
+    # fallback
+    if bc_ratio is None:
+        nk = match_key(zone_name, NATIONAL_DEFAULT)
+        if nk:
+            bc_ratio  = NATIONAL_DEFAULT[nk]["건폐율"]
+            far_ratio = NATIONAL_DEFAULT[nk]["용적률"]
 
-            print("")
-            print(h("## 2. 규모 검토"))
+    use_key    = match_key(zone_name, ZONE_USE)
+    max_floor  = FLOOR_LIMIT.get(zone_key or use_key or "", 999)
+    height_inf = HEIGHT_LIMIT.get(zone_key or use_key or "", {"절대높이": "없음", "일조권사선": True})
+    use_info   = ZONE_USE.get(use_key)
 
-            # 건축면적 검토
-            if plan.get("건축면적"):
-                bc_rate = round(plan["건축면적"] / site_area * 100, 1)
-                if plan["건축면적"] <= max_bc:
-                    print("- " + ok("건축면적: " + str(plan["건축면적"]) + " m²  →  건폐율 " + str(bc_rate) + "% (허용 " + str(ratio["건폐율"]) + "% 이하)  여유 " + str(round(max_bc - plan["건축면적"],1)) + " m²"))
-                else:
-                    over = round(plan["건축면적"] - max_bc, 1)
-                    print("- " + ng("건축면적: " + str(plan["건축면적"]) + " m²  →  건폐율 " + str(bc_rate) + "% (허용 " + str(ratio["건폐율"]) + "% 초과!)  " + str(over) + " m² 초과"))
-                print("       근거: 국토계획법 시행령 제84조 | https://www.law.go.kr/법령/국토의계획및이용에관한법률시행령")
-            else:
-                print("- [ ] 건축면적: 미입력  →  최대 " + GREEN + str(max_bc) + " m²" + RESET + " (" + str(ratio["건폐율"]) + "%) 가능")
+    # ─── 1단계 ───
+    print(f"\n{'─'*65}")
+    print(f"  {BOLD}{CYAN}【1단계】 토지 법규 현황 분석{RESET}")
+    print(f"{'─'*65}")
 
-            # 연면적 검토
-            if plan.get("연면적"):
-                far_rate = round(plan["연면적"] / site_area * 100, 1)
-                if plan["연면적"] <= max_far:
-                    print("- " + ok("연면적: " + str(plan["연면적"]) + " m²  →  용적률 " + str(far_rate) + "% (허용 " + str(ratio["용적률"]) + "% 이하)  여유 " + str(round(max_far - plan["연면적"],1)) + " m²"))
-                else:
-                    over = round(plan["연면적"] - max_far, 1)
-                    print("- " + ng("연면적: " + str(plan["연면적"]) + " m²  →  용적률 " + str(far_rate) + "% (허용 " + str(ratio["용적률"]) + "% 초과!)  " + str(over) + " m² 초과"))
-                print("       근거: 국토계획법 시행령 제85조 | https://www.law.go.kr/법령/국토의계획및이용에관한법률시행령")
-            else:
-                print("- [ ] 연면적: 미입력  →  최대 " + GREEN + str(max_far) + " m²" + RESET + " (" + str(ratio["용적률"]) + "%) 가능")
+    print(f"\n{BOLD}## 1. 용도지역 및 지구{RESET}")
+    print(f"  - [x] 용도지역: {GREEN}{zone_name}{RESET}  (근거: 국토계획법 제36조 | https://www.law.go.kr/법령/국토의계획및이용에관한법률)")
+    if districts:
+        for d in districts:
+            print(f"  - [x] 지구단위계획: {YELLOW}{d}  ※ 별도 완화기준 적용 가능{RESET}")
+    else:
+        print(f"  - [ ] 지구단위계획: 해당 없음")
 
-        # ──────────────────────────────────────
-        if height:
-            print("")
-            print(h("## 3. 높이 및 층수 검토"))
+    print(f"\n{BOLD}## 2. 건축 가능 규모{RESET}")
+    print(f"       {CYAN}근거: {ordinance_label}{RESET}")
+    if bc_ratio:
+        line = f"  - [x] 건폐율: {GREEN}{bc_ratio}% 이하{RESET}"
+        if site_area:
+            max_bc = round(site_area * bc_ratio / 100, 2)
+            line += f"  →  최대 건축면적 {GREEN}{max_bc}m²{RESET} ({max_bc/3.3058:.1f}평)"
+        print(line + "  (근거: 국토계획법 시행령 제84조)")
 
-            # 절대높이
-            if height["절대높이"] > 0:
-                if plan.get("건물높이"):
-                    if plan["건물높이"] <= height["절대높이"]:
-                        print("- " + ok("건물높이: " + str(plan["건물높이"]) + "m  →  절대높이 " + str(height["절대높이"]) + "m 이하 만족"))
-                    else:
-                        over = round(plan["건물높이"] - height["절대높이"], 1)
-                        print("- " + ng("건물높이: " + str(plan["건물높이"]) + "m  →  절대높이 " + str(height["절대높이"]) + "m 초과!  " + str(over) + "m 초과"))
-                    print("       근거: 건축법 시행령 제82조 | https://www.law.go.kr/법령/건축법시행령")
-                else:
-                    print("- [!] 절대높이: " + YELLOW + str(height["절대높이"]) + "m 이하" + RESET + " 제한 있음  (건축법 시행령 제82조)")
-            else:
-                print("- " + ok("절대높이: 제한 없음  (용적률로 관리)"))
+        line2 = f"  - [x] 용적률: {GREEN}{far_ratio}% 이하{RESET}"
+        if site_area:
+            max_far = round(site_area * far_ratio / 100, 2)
+            line2 += f"  →  최대 연면적 {GREEN}{max_far}m²{RESET} ({max_far/3.3058:.1f}평)"
+        print(line2 + "  (근거: 국토계획법 시행령 제85조)")
 
-            # 층수 검토
-            if ratio and plan.get("지상층수"):
-                max_floors = ratio.get("최고층수", 999)
-                if max_floors < 999:
-                    if plan["지상층수"] <= max_floors:
-                        print("- " + ok("지상층수: " + str(plan["지상층수"]) + "층  →  최고 " + str(max_floors) + "층 이하 만족"))
-                    else:
-                        print("- " + ng("지상층수: " + str(plan["지상층수"]) + "층  →  최고 " + str(max_floors) + "층 초과!"))
-                    print("       근거: 국토계획법 시행령 | https://www.law.go.kr/법령/국토의계획및이용에관한법률시행령")
-                else:
-                    print("- " + ok("지상층수: " + str(plan["지상층수"]) + "층  →  층수 제한 없음"))
+    print(f"\n{BOLD}## 3. 높이 제한 및 사선 제한{RESET}")
+    abs_h = height_inf.get("절대높이", "없음")
+    illo  = height_inf.get("일조권사선", True)
+    print(f"  - [x] 절대높이:   {GREEN}{abs_h}{RESET}  (근거: 건축법 시행령 제82조 | https://www.law.go.kr/법령/건축법시행령)")
+    print(f"  - [x] 일조권사선: {YELLOW if illo else GREEN}{'필요' if illo else '불필요'}{RESET}  (근거: 건축법 제61조 제1항 | https://www.law.go.kr/법령/건축법)")
+    print(f"  - [x] 도로사선:   {YELLOW}필요{RESET}  (근거: 건축법 제61조 제2항 | https://www.law.go.kr/법령/건축법)")
+    print(f"  - [x] 최고층수:   {GREEN}{max_floor}층 이하{RESET}" if max_floor < 999 else f"  - [x] 최고층수:   {GREEN}제한 없음{RESET}")
 
-            if plan.get("지하층수"):
-                print("- [x] 지하층수: " + str(plan["지하층수"]) + "층  →  용도지역 층수제한 적용 제외")
+    if use_info:
+        print(f"\n{BOLD}## 4. 허용 건축물 용도{RESET}")
+        print(f"       근거: 국토계획법 시행령 {use_info['근거']} | https://www.law.go.kr/법령/국토의계획및이용에관한법률시행령")
+        print(f"  - [x] 허용: {GREEN}{', '.join(use_info['허용'])}{RESET}")
+        print(f"  - [ ] 불허: {RED}{', '.join(use_info['불허'])}{RESET}")
 
-            # 일조권 사선제한
-            if height["일조권사선"] and plan.get("건물높이"):
-                required_setback = calc_sunlight_oblique(plan["건물높이"])
-                print("- " + warn("일조권 사선제한 적용  →  정북방향 인접대지경계선에서 최소 " + str(required_setback) + "m 이격 필요"))
-                print("       근거: 건축법 제61조 제1항 | https://www.law.go.kr/법령/건축법")
-            elif not height["일조권사선"]:
-                print("- " + ok("일조권 사선제한: 해당 없음  (" + zone_name + " 적용 제외)"))
-                print("       근거: 건축법 제61조 제1항 | https://www.law.go.kr/법령/건축법")
+    if site_area and bc_ratio:
+        max_far_v = round(site_area * far_ratio / 100, 2)
+        print(f"\n{BOLD}## 5. 주차대수 기준  (최대 연면적 {max_far_v}m² 기준){RESET}")
+        print(f"       근거: 주차장법 시행령 별표1 | https://www.law.go.kr/법령/주차장법시행령")
+        for use_nm, info in PARKING_TABLE.items():
+            cnt = max(1, int(max_far_v / info["calc_area"]))
+            print(f"  - [x] {use_nm}: {GREEN}{cnt}대{RESET}  ({info['기준']})")
 
-            # 도로사선 제한
-            if plan.get("접도폭원") and plan.get("건물높이"):
-                allowed_height = calc_road_oblique(plan["접도폭원"])
-                if plan["건물높이"] <= allowed_height:
-                    print("- " + ok("도로사선: 건물높이 " + str(plan["건물높이"]) + "m  →  도로 " + str(plan["접도폭원"]) + "m 기준 허용높이 " + str(allowed_height) + "m 이하 만족"))
-                else:
-                    print("- " + ng("도로사선: 건물높이 " + str(plan["건물높이"]) + "m  →  도로 " + str(plan["접도폭원"]) + "m 기준 허용높이 " + str(allowed_height) + "m 초과!"))
-                print("       근거: 건축법 제61조 제2항 | https://www.law.go.kr/법령/건축법")
-            elif plan.get("접도폭원"):
-                allowed_height = calc_road_oblique(plan["접도폭원"])
-                print("- " + warn("도로사선: 접도 " + str(plan["접도폭원"]) + "m 기준 허용높이 최대 " + str(allowed_height) + "m"))
-                print("       근거: 건축법 제61조 제2항 | https://www.law.go.kr/법령/건축법")
+    # ─── 2단계 ───
+    if not plan:
+        print(f"\n  {YELLOW}※ 계획 건물 정보 미입력 → 2단계 검토 생략{RESET}")
+        print(f"\n{'='*65}\n")
+        return
 
-        # ──────────────────────────────────────
-        if uses and plan.get("주용도"):
-            print("")
-            print(h("## 4. 용도 적합성 검토"))
-            allowed = any(plan["주용도"] in u or u in plan["주용도"] for u in uses["허용"])
-            denied  = any(plan["주용도"] in u or u in plan["주용도"] for u in uses["불허"])
-            if denied:
-                print("- " + ng("주용도 '" + plan["주용도"] + "'  →  " + zone_name + " 불허 용도!"))
-            elif allowed:
-                print("- " + ok("주용도 '" + plan["주용도"] + "'  →  " + zone_name + " 허용 용도"))
-            else:
-                print("- " + warn("주용도 '" + plan["주용도"] + "'  →  허용 여부 별도 확인 필요"))
-            print("       근거: 국토계획법 시행령 " + uses["별표"] + " | https://www.law.go.kr/법령/국토의계획및이용에관한법률시행령")
+    print(f"\n{'─'*65}")
+    print(f"  {BOLD}{CYAN}【2단계】 계획 건물 법규 검토{RESET}")
+    print(f"{'─'*65}")
 
-        # ──────────────────────────────────────
-        print("")
-        print(h("## 5. 주차대수 검토"))
-        print("       근거: 주차장법 시행령 별표1 | https://www.law.go.kr/법령/주차장법시행령")
+    ba     = plan.get("건축면적")
+    gfa    = plan.get("연면적")
+    height = plan.get("건물높이")
+    floors = plan.get("지상층수")
+    bfloor = plan.get("지하층수", 0)
+    road_w = plan.get("접도폭원")
+    use    = plan.get("주용도")
+    prk    = plan.get("계획주차대수")
 
-        calc_area = plan.get("연면적") or (site_area * ratio["용적률"] / 100 if ratio and site_area else 0)
-        if plan.get("주용도") and calc_area:
-            # 주용도에 맞는 주차기준 찾기
-            matched_parking = None
-            for key, val in PARKING_TABLE.items():
-                if plan["주용도"] in key or key in plan["주용도"]:
-                    matched_parking = (key, val)
-                    break
+    print(f"\n{BOLD}## 1. 규모 검토{RESET}")
+    if site_area and bc_ratio and ba:
+        max_bc = site_area * bc_ratio / 100
+        a_bc   = round(ba / site_area * 100, 1)
+        sur_bc = round(max_bc - ba, 2)
+        tag = f"  - {GREEN}✅ OK{RESET} " if ba <= max_bc else f"  - {RED}❌ NG{RESET} "
+        msg = f"건축면적: {ba}m²  건폐율 {a_bc}% ({'허용 ' + str(bc_ratio) + '% 이하' if ba <= max_bc else '허용 ' + str(bc_ratio) + '% 초과!'})  {'여유' if ba<=max_bc else '초과'} {abs(sur_bc):.2f}m²"
+        print(tag + msg)
+        print(f"         근거: 국토계획법 시행령 제84조 | https://www.law.go.kr/법령/국토의계획및이용에관한법률시행령")
 
-            if matched_parking:
-                use_name, p_info = matched_parking
-                legal_count = p_info["계산"](calc_area)
-                if plan.get("계획주차대수"):
-                    if plan["계획주차대수"] >= legal_count:
-                        print("- " + ok("계획 " + str(plan["계획주차대수"]) + "대  ≥  법정 " + str(legal_count) + "대 (" + p_info["기준"] + ")  여유 " + str(plan["계획주차대수"] - legal_count) + "대"))
-                    else:
-                        short = legal_count - plan["계획주차대수"]
-                        print("- " + ng("계획 " + str(plan["계획주차대수"]) + "대  <  법정 " + str(legal_count) + "대 (" + p_info["기준"] + ")  " + str(short) + "대 부족!"))
-                else:
-                    print("- [x] 법정주차대수: " + GREEN + str(legal_count) + "대" + RESET + " (" + p_info["기준"] + ", 연면적 " + str(calc_area) + "m² 기준)")
-            else:
-                # 전체 용도별 출력
-                for use, info in PARKING_TABLE.items():
-                    count = info["계산"](calc_area)
-                    print("- [x] " + use + ": " + GREEN + str(count) + "대" + RESET + "  (" + info["기준"] + ")")
+    if site_area and far_ratio and gfa:
+        max_far = site_area * far_ratio / 100
+        a_far   = round(gfa / site_area * 100, 1)
+        sur_far = round(max_far - gfa, 2)
+        tag = f"  - {GREEN}✅ OK{RESET} " if gfa <= max_far else f"  - {RED}❌ NG{RESET} "
+        msg = f"연면적: {gfa}m²  용적률 {a_far}% ({'허용 ' + str(far_ratio) + '% 이하' if gfa <= max_far else '허용 ' + str(far_ratio) + '% 초과!'})  {'여유' if gfa<=max_far else '초과'} {abs(sur_far):.2f}m²"
+        print(tag + msg)
+        print(f"         근거: 국토계획법 시행령 제85조 | https://www.law.go.kr/법령/국토의계획및이용에관한법률시행령")
 
-        print("")
-        print("  ※ 지자체 조례에 따라 달라질 수 있음")
-        print("  ※ 일조권/도로사선은 정확한 검토를 위해 배치도 검토 필요")
+    print(f"\n{BOLD}## 2. 높이 및 층수 검토{RESET}")
+    if height:
+        if "없음" in abs_h:
+            print(f"  - {GREEN}✅ OK{RESET}   절대높이: 제한 없음")
+        else:
+            lim = int("".join(filter(str.isdigit, abs_h)))
+            ok  = height <= lim
+            print(f"  - {GREEN+'✅ OK'+RESET if ok else RED+'❌ NG'+RESET}   절대높이: {height}m  허용 {abs_h} {'만족' if ok else '초과!'}")
+            print(f"         근거: 건축법 시행령 제82조 | https://www.law.go.kr/법령/건축법시행령")
 
-    print(BOLD + "=" * 65 + RESET)
+    if floors:
+        if max_floor >= 999:
+            print(f"  - {GREEN}✅ OK{RESET}   지상층수: {floors}층  최고층수 제한 없음")
+        elif floors <= max_floor:
+            print(f"  - {GREEN}✅ OK{RESET}   지상층수: {floors}층  최고 {max_floor}층 이하 만족")
+        else:
+            print(f"  - {RED}❌ NG{RESET}   지상층수: {floors}층  최고 {max_floor}층 초과!")
+        print(f"         근거: 국토계획법 시행령 | https://www.law.go.kr/법령/국토의계획및이용에관한법률시행령")
+        if bfloor:
+            print(f"  - [x] 지하층수: {bfloor}층  용도지역 층수제한 적용 제외")
 
+    if height and illo:
+        min_dist = round(height / 2, 1)
+        print(f"  - {YELLOW}⚠️  검토{RESET}  일조권 사선제한  →  정북방향 인접대지경계선에서 최소 {min_dist}m 이격 필요")
+        print(f"         근거: 건축법 제61조 제1항 | https://www.law.go.kr/법령/건축법")
+
+    if height and road_w:
+        allow_h = road_w * 1.5 + 4
+        ok = height <= allow_h
+        print(f"  - {GREEN+'✅ OK'+RESET if ok else RED+'❌ NG'+RESET}   도로사선: 건물높이 {height}m  도로 {road_w}m 기준 허용높이 {allow_h}m {'만족' if ok else '초과!'}")
+        print(f"         근거: 건축법 제61조 제2항 | https://www.law.go.kr/법령/건축법")
+
+    if use and use_info:
+        print(f"\n{BOLD}## 3. 용도 적합성 검토{RESET}")
+        cu = use.replace(" ", "")
+        is_allow = any(cu in a.replace(" ", "") or a.replace(" ", "") in cu for a in use_info["허용"])
+        is_deny  = any(cu in d.replace(" ", "") or d.replace(" ", "") in cu for d in use_info["불허"])
+        if is_deny:
+            print(f"  - {RED}❌ NG{RESET}   주용도 '{use}'  {zone_name} 불허 용도!")
+        elif is_allow:
+            print(f"  - {GREEN}✅ OK{RESET}   주용도 '{use}'  {zone_name} 허용 용도")
+        else:
+            print(f"  - {YELLOW}⚠️  검토{RESET}  주용도 '{use}'  허용 여부 별도 확인 필요")
+        print(f"         근거: 국토계획법 시행령 {use_info['근거']} | https://www.law.go.kr/법령/국토의계획및이용에관한법률시행령")
+
+    if gfa:
+        print(f"\n{BOLD}## 4. 주차대수 검토{RESET}")
+        print(f"         근거: 주차장법 시행령 별표1 | https://www.law.go.kr/법령/주차장법시행령")
+        matched = None
+        cu = (use or "").replace(" ", "")
+        for k, v in PARKING_TABLE.items():
+            if k.replace(" ", "") in cu or cu in k.replace(" ", ""):
+                matched = (k, v)
+                break
+        if not matched:
+            matched = ("공동주택", PARKING_TABLE["공동주택"])
+        pk_nm, pk_info = matched
+        legal = max(1, int(gfa / pk_info["calc_area"]))
+        if prk is not None:
+            ok = prk >= legal
+            print(f"  - {GREEN+'✅ OK'+RESET if ok else RED+'❌ NG'+RESET}   계획 {prk}대  {'≥' if ok else '<'}  법정 {legal}대 ({pk_info['기준']})  {'여유 ' + str(prk-legal) + '대' if ok else str(legal-prk) + '대 부족!'}")
+        else:
+            print(f"  - [x] 법정주차대수: {GREEN}{legal}대{RESET}  ({pk_info['기준']})")
+
+    print(f"\n  {YELLOW}※ 지자체 조례에 따라 달라질 수 있음")
+    print(f"  ※ 일조권/도로사선은 정확한 검토를 위해 배치도 검토 필요{RESET}")
+    print(f"\n{'='*65}\n")
+
+
+# ──────────────────────────────────────────────
+# 실행 - 여기를 수정해서 사용하세요
+# ──────────────────────────────────────────────
 if __name__ == "__main__":
-    # ────────────────────────────────────────────
-    # 토지 정보
-    address   = "대전광역시 유성구 반석동 644-4"
-    site_area = 330.0  # 대지면적 (m²)
 
-    # ────────────────────────────────────────────
-    # 계획 건물 정보 (없으면 None)
+    address   = "대전광역시 유성구 지족동 1093"
+    site_area = 330.0
+
     plan = {
-        "주용도":      "공동주택",   # 계획 주용도
-        "건축면적":    180.0,        # 계획 건축면적 (m²)
-        "연면적":      750.0,        # 계획 연면적 (m²)
-        "건물높이":    40.0,         # 계획 건물높이 (m)
-        "지상층수":    12,           # 지상 층수
-        "지하층수":    2,            # 지하 층수
-        "접도폭원":    8.0,          # 접하는 도로 폭원 (m)
-        "계획주차대수": 15,          # 계획 주차대수 (대)
+        "주용도":       "공동주택",
+        "건축면적":     180.0,
+        "연면적":       750.0,
+        "건물높이":     40.0,
+        "지상층수":     12,
+        "지하층수":     2,
+        "접도폭원":     8.0,
+        "계획주차대수": 15,
     }
-    # ────────────────────────────────────────────
 
     check_building_law(address, site_area, plan)
