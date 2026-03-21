@@ -40,7 +40,6 @@
   button:hover { opacity: 0.85; }
   button:disabled { opacity: 0.4; cursor: not-allowed; }
   .btn-row { display: flex; gap: 10px; margin-top: 16px; }
-  .btn-secondary { background: var(--surface2); color: var(--text2); border: 1px solid var(--border); }
   .loading { display: none; text-align: center; padding: 60px; color: var(--text2); font-size: 14px; }
   .spinner { width: 32px; height: 32px; border: 3px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: spin 0.8s linear infinite; margin: 0 auto 16px; }
   @keyframes spin { to { transform: rotate(360deg); } }
@@ -105,18 +104,17 @@
       <input type="number" id="area" placeholder="대지면적 (m²)" />
       <button onclick="analyze()" id="btn">조회하기</button>
     </div>
-
     <div class="plan-box">
       <div class="plan-title">// 계획 건물 정보 (선택입력 - 입력시 2단계 법규검토 실행)</div>
       <div class="plan-grid">
-        <input type="text" id="p_use" placeholder="주용도 (예: 공동주택)" />
-        <input type="number" id="p_bc" placeholder="건축면적 (m²)" />
-        <input type="number" id="p_far" placeholder="연면적 (m²)" />
-        <input type="number" id="p_height" placeholder="건물높이 (m)" />
-        <input type="number" id="p_floor_up" placeholder="지상층수" />
-        <input type="number" id="p_floor_down" placeholder="지하층수" />
-        <input type="number" id="p_road" placeholder="접도폭원 (m)" />
-        <input type="number" id="p_parking" placeholder="계획주차대수 (대)" />
+        <input type="text"   id="p_use"       placeholder="주용도 (예: 공동주택)" />
+        <input type="number" id="p_bc"        placeholder="건축면적 (m²)" />
+        <input type="number" id="p_far"       placeholder="연면적 (m²)" />
+        <input type="number" id="p_height"    placeholder="건물높이 (m)" />
+        <input type="number" id="p_floor_up"  placeholder="지상층수" />
+        <input type="number" id="p_floor_down"placeholder="지하층수" />
+        <input type="number" id="p_road"      placeholder="접도폭원 (m)" />
+        <input type="number" id="p_parking"   placeholder="계획주차대수 (대)" />
       </div>
     </div>
   </div>
@@ -127,7 +125,8 @@
 </div>
 
 <script>
-const API_URL = "https://building-law-checker-production.up.railway.app";
+// ★ API_URL을 빈 문자열로 설정 → 같은 서버에서 호출
+const API_URL = "";
 
 function py(m2) { return (m2 / 3.3058).toFixed(1) + "평"; }
 
@@ -137,14 +136,14 @@ async function analyze() {
   if (!address) { showError("주소를 입력해주세요."); return; }
 
   const plan = {};
-  if (document.getElementById("p_use").value)        plan["주용도"]       = document.getElementById("p_use").value;
-  if (document.getElementById("p_bc").value)         plan["건축면적"]     = parseFloat(document.getElementById("p_bc").value);
-  if (document.getElementById("p_far").value)        plan["연면적"]       = parseFloat(document.getElementById("p_far").value);
-  if (document.getElementById("p_height").value)     plan["건물높이"]     = parseFloat(document.getElementById("p_height").value);
-  if (document.getElementById("p_floor_up").value)   plan["지상층수"]     = parseInt(document.getElementById("p_floor_up").value);
-  if (document.getElementById("p_floor_down").value) plan["지하층수"]     = parseInt(document.getElementById("p_floor_down").value);
-  if (document.getElementById("p_road").value)       plan["접도폭원"]     = parseFloat(document.getElementById("p_road").value);
-  if (document.getElementById("p_parking").value)    plan["계획주차대수"] = parseInt(document.getElementById("p_parking").value);
+  if (document.getElementById("p_use").value)         plan["주용도"]       = document.getElementById("p_use").value;
+  if (document.getElementById("p_bc").value)          plan["건축면적"]     = parseFloat(document.getElementById("p_bc").value);
+  if (document.getElementById("p_far").value)         plan["연면적"]       = parseFloat(document.getElementById("p_far").value);
+  if (document.getElementById("p_height").value)      plan["건물높이"]     = parseFloat(document.getElementById("p_height").value);
+  if (document.getElementById("p_floor_up").value)    plan["지상층수"]     = parseInt(document.getElementById("p_floor_up").value);
+  if (document.getElementById("p_floor_down").value)  plan["지하층수"]     = parseInt(document.getElementById("p_floor_down").value);
+  if (document.getElementById("p_road").value)        plan["접도폭원"]     = parseFloat(document.getElementById("p_road").value);
+  if (document.getElementById("p_parking").value)     plan["계획주차대수"] = parseInt(document.getElementById("p_parking").value);
 
   const btn = document.getElementById("btn");
   btn.disabled = true;
@@ -156,7 +155,11 @@ async function analyze() {
     const res = await fetch(API_URL + "/analyze", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ address, area: areaVal ? parseFloat(areaVal) : null, plan: Object.keys(plan).length > 0 ? plan : null })
+      body: JSON.stringify({
+        address,
+        area: areaVal ? parseFloat(areaVal) : null,
+        plan: Object.keys(plan).length > 0 ? plan : null
+      })
     });
     const data = await res.json();
     if (data.error) { showError(data.error); return; }
@@ -188,11 +191,9 @@ function row(check, label, value, colorClass, lawText, lawUrl) {
 function okRow(label, value, law, lawUrl) {
   return `<div class="row ok-row"><span class="check">✅</span><span class="label">${label}</span><span class="value">${value}</span>${lawUrl ? `<span class="law-ref"><a href="${lawUrl}" target="_blank">${law} ↗</a></span>` : ""}</div>`;
 }
-
 function ngRow(label, value, law, lawUrl) {
   return `<div class="row ng-row"><span class="check">❌</span><span class="label">${label}</span><span class="value">${value}</span>${lawUrl ? `<span class="law-ref"><a href="${lawUrl}" target="_blank">${law} ↗</a></span>` : ""}</div>`;
 }
-
 function warnRow(label, value, law, lawUrl) {
   return `<div class="row warn-row"><span class="check">⚠️</span><span class="label">${label}</span><span class="value">${value}</span>${lawUrl ? `<span class="law-ref"><a href="${lawUrl}" target="_blank">${law} ↗</a></span>` : ""}</div>`;
 }
@@ -203,22 +204,19 @@ function renderResult(data) {
 
   html += `<div class="result-header">
     <div class="addr">📍 ${data.address}</div>
-    <div class="meta">${data.area ? "대지면적: " + data.area + " m² (" + py(data.area) + ")" : "대지면적 미입력"}</div>
+    <div class="meta">${data.area ? "대지면적: " + data.area + " m² (" + py(data.area) + ")  |  " : ""}기준: ${r.ordinance}</div>
   </div>`;
 
   // ── 1단계 ──
   html += `<div class="stage">
-    <div class="stage-header">
-      <span class="stage-badge">1단계</span>
-      <span class="stage-title">토지 법규 현황 분석</span>
-    </div>`;
+    <div class="stage-header"><span class="stage-badge">1단계</span><span class="stage-title">토지 법규 현황 분석</span></div>`;
 
   // 1. 용도지역
   html += `<div class="section"><div class="sec-title">## 1. 용도지역 및 지구</div>`;
   html += row("[x]", "용도지역", r.용도지역, "blue", "국토계획법 제36조", "https://www.law.go.kr/법령/국토의계획및이용에관한법률");
   if (r.지구단위계획 && r.지구단위계획.length > 0) {
     r.지구단위계획.forEach(d => {
-      html += row("[x]", "지구단위계획", d + "  ※ 별도 완화기준 적용 가능", "warn", "국토계획법 제49조", "https://www.law.go.kr/법령/국토의계획및이용에관한법률");
+      html += row("[x]", "지구단위계획", d + "  ※ 별도 완화기준 적용 가능", "warn");
     });
   } else {
     html += row("[ ]", "지구단위계획", "해당 없음", "");
@@ -231,34 +229,32 @@ function renderResult(data) {
   html += row("[x]", "용적률", r.용적률 + "% 이하", "green", "시행령 제85조", "https://www.law.go.kr/법령/국토의계획및이용에관한법률시행령");
   if (r.최대건축면적) {
     html += `<div class="big-nums">
-      <div class="big-num"><div class="bn-label">최대 건축면적 (건폐율 기준)</div><div class="bn-val">${r.최대건축면적}<span> m²</span></div><div class="bn-py">${py(r.최대건축면적)} · 대지면적 × 건폐율</div></div>
-      <div class="big-num"><div class="bn-label">최대 연면적 (용적률 기준)</div><div class="bn-val">${r.최대연면적}<span> m²</span></div><div class="bn-py">${py(r.최대연면적)} · 대지면적 × 용적률</div></div>
+      <div class="big-num"><div class="bn-label">최대 건축면적 (건폐율 기준)</div><div class="bn-val">${r.최대건축면적}<span> m²</span></div><div class="bn-py">${py(r.최대건축면적)}</div></div>
+      <div class="big-num"><div class="bn-label">최대 연면적 (용적률 기준)</div><div class="bn-val">${r.최대연면적}<span> m²</span></div><div class="bn-py">${py(r.최대연면적)}</div></div>
     </div>`;
   }
   html += `</div>`;
 
   // 3. 높이 제한
-  if (r.높이제한) {
-    html += `<div class="section"><div class="sec-title">## 3. 높이 제한 및 사선 제한</div>`;
-    html += row("[x]", "절대높이", r.높이제한.절대높이, "green", "건축법 시행령 제82조", "https://www.law.go.kr/법령/건축법시행령");
-    html += row("[x]", "일조권사선", r.높이제한.일조권사선 ? "필요" : "불필요", r.높이제한.일조권사선 ? "warn" : "green", "건축법 제61조 제1항", "https://www.law.go.kr/법령/건축법");
-    html += row("[x]", "도로사선", "필요", "warn", "건축법 제61조 제2항", "https://www.law.go.kr/법령/건축법");
-    html += row("[x]", "최고층수", r.최고층수 < 999 ? r.최고층수 + "층 이하" : "제한 없음", "green");
-    html += `</div>`;
-  }
+  html += `<div class="section"><div class="sec-title">## 3. 높이 제한 및 사선 제한</div>`;
+  html += row("[x]", "절대높이", r.절대높이 || "없음", "green", "건축법 시행령 제82조", "https://www.law.go.kr/법령/건축법시행령");
+  html += row("[x]", "일조권사선", r.일조권사선 ? "필요" : "불필요", r.일조권사선 ? "warn" : "green", "건축법 제61조 제1항", "https://www.law.go.kr/법령/건축법");
+  html += row("[x]", "도로사선", "필요", "warn", "건축법 제61조 제2항", "https://www.law.go.kr/법령/건축법");
+  html += row("[x]", "최고층수", r.최고층수 < 999 ? r.최고층수 + "층 이하" : "제한 없음", "green");
+  html += `</div>`;
 
   // 4. 허용 용도
-  html += `<div class="section"><div class="sec-title">## 4. 허용 건축물 용도</div>
-    <div style="font-size:12px;color:var(--text2);margin-bottom:8px">근거: 국토계획법 시행령 ${r.용도근거} · <a href="https://www.law.go.kr/법령/국토의계획및이용에관한법률시행령" target="_blank" style="color:var(--accent)">법령 보기 ↗</a></div>
-    <div class="row" style="flex-direction:column;gap:8px;border:none">
-      <div><div style="font-size:12px;color:var(--text2);margin-bottom:6px">허용</div><div class="tag-list">${r.허용용도.map(u=>`<span class="tag allow">✓ ${u}</span>`).join("")}</div></div>
-      <div style="margin-top:8px"><div style="font-size:12px;color:var(--text2);margin-bottom:6px">불허</div><div class="tag-list">${r.불허용도.map(u=>`<span class="tag deny">✗ ${u}</span>`).join("")}</div></div>
-    </div>
-  </div>`;
+  if (r.허용용도 && r.허용용도.length > 0) {
+    html += `<div class="section"><div class="sec-title">## 4. 허용 건축물 용도</div>
+      <div style="font-size:12px;color:var(--text2);margin-bottom:8px">근거: 국토계획법 시행령 ${r.용도근거} · <a href="https://www.law.go.kr/법령/국토의계획및이용에관한법률시행령" target="_blank" style="color:var(--accent)">법령 보기 ↗</a></div>
+      <div style="margin-bottom:8px"><div style="font-size:12px;color:var(--text2);margin-bottom:6px">허용</div><div class="tag-list">${r.허용용도.map(u=>`<span class="tag allow">✓ ${u}</span>`).join("")}</div></div>
+      <div><div style="font-size:12px;color:var(--text2);margin-bottom:6px">불허</div><div class="tag-list">${r.불허용도.map(u=>`<span class="tag deny">✗ ${u}</span>`).join("")}</div></div>
+    </div>`;
+  }
 
   // 5. 주차 기준
   if (r.주차기준 && Object.keys(r.주차기준).length > 0) {
-    html += `<div class="section"><div class="sec-title">## 5. 주차대수 기준 (최대 연면적 기준)</div>
+    html += `<div class="section"><div class="sec-title">## 5. 주차대수 기준</div>
       <div style="font-size:12px;color:var(--text2);margin-bottom:12px">근거: 주차장법 시행령 별표1 · <a href="https://www.law.go.kr/법령/주차장법시행령" target="_blank" style="color:var(--accent)">법령 보기 ↗</a></div>
       <div class="parking-grid">${Object.entries(r.주차기준).map(([use,info])=>`
         <div class="parking-card">
@@ -269,77 +265,67 @@ function renderResult(data) {
       </div>
     </div>`;
   }
-
   html += `</div>`;
 
   // ── 2단계 ──
   if (r.계획검토) {
     const p = r.계획검토;
     html += `<div class="stage">
-      <div class="stage-header">
-        <span class="stage-badge">2단계</span>
-        <span class="stage-title">계획 건물 법규 검토</span>
-      </div>`;
+      <div class="stage-header"><span class="stage-badge">2단계</span><span class="stage-title">계획 건물 법규 검토</span></div>`;
 
-    // 규모 검토
     html += `<div class="section"><div class="sec-title">## 1. 규모 검토</div>`;
     if (p.건축면적) {
-      if (p.건축면적.ok) html += okRow("건축면적", p.건축면적.계획 + "m²  건폐율 " + p.건축면적.건폐율 + "% (허용 " + r.건폐율 + "% 이하)  여유 " + p.건축면적.여유 + "m²", "시행령 제84조", "https://www.law.go.kr/법령/국토의계획및이용에관한법률시행령");
-      else html += ngRow("건축면적", p.건축면적.계획 + "m²  건폐율 " + p.건축면적.건폐율 + "% (허용 " + r.건폐율 + "% 초과!)  " + Math.abs(p.건축면적.여유) + "m² 초과", "시행령 제84조", "https://www.law.go.kr/법령/국토의계획및이용에관한법률시행령");
+      if (p.건축면적.ok) html += okRow("건축면적", `${p.건축면적.계획}m²  건폐율 ${p.건축면적.건폐율}% (허용 ${r.건폐율}% 이하)  여유 ${p.건축면적.여유}m²`, "시행령 제84조", "https://www.law.go.kr/법령/국토의계획및이용에관한법률시행령");
+      else html += ngRow("건축면적", `${p.건축면적.계획}m²  건폐율 ${p.건축면적.건폐율}% (허용 ${r.건폐율}% 초과!)  ${Math.abs(p.건축면적.여유)}m² 초과`, "시행령 제84조", "https://www.law.go.kr/법령/국토의계획및이용에관한법률시행령");
     }
     if (p.연면적) {
-      if (p.연면적.ok) html += okRow("연면적", p.연면적.계획 + "m²  용적률 " + p.연면적.용적률 + "% (허용 " + r.용적률 + "% 이하)  여유 " + p.연면적.여유 + "m²", "시행령 제85조", "https://www.law.go.kr/법령/국토의계획및이용에관한법률시행령");
-      else html += ngRow("연면적", p.연면적.계획 + "m²  용적률 " + p.연면적.용적률 + "% (허용 " + r.용적률 + "% 초과!)  " + Math.abs(p.연면적.여유) + "m² 초과", "시행령 제85조", "https://www.law.go.kr/법령/국토의계획및이용에관한법률시행령");
+      if (p.연면적.ok) html += okRow("연면적", `${p.연면적.계획}m²  용적률 ${p.연면적.용적률}% (허용 ${r.용적률}% 이하)  여유 ${p.연면적.여유}m²`, "시행령 제85조", "https://www.law.go.kr/법령/국토의계획및이용에관한법률시행령");
+      else html += ngRow("연면적", `${p.연면적.계획}m²  용적률 ${p.연면적.용적률}% (허용 ${r.용적률}% 초과!)  ${Math.abs(p.연면적.여유)}m² 초과`, "시행령 제85조", "https://www.law.go.kr/법령/국토의계획및이용에관한법률시행령");
     }
     html += `</div>`;
 
-    // 높이 층수 검토
     html += `<div class="section"><div class="sec-title">## 2. 높이 및 층수 검토</div>`;
     if (p.절대높이) {
-      if (p.절대높이.ok) html += okRow("절대높이", p.절대높이.계획 + "m  허용: " + p.절대높이.허용, "건축법 시행령 제82조", "https://www.law.go.kr/법령/건축법시행령");
-      else html += ngRow("절대높이", p.절대높이.계획 + "m  허용: " + p.절대높이.허용 + " 초과!", "건축법 시행령 제82조", "https://www.law.go.kr/법령/건축법시행령");
+      if (p.절대높이.ok) html += okRow("절대높이", `${p.절대높이.계획}m  허용: ${p.절대높이.허용} 만족`, "건축법 시행령 제82조", "https://www.law.go.kr/법령/건축법시행령");
+      else html += ngRow("절대높이", `${p.절대높이.계획}m  허용: ${p.절대높이.허용} 초과!`, "건축법 시행령 제82조", "https://www.law.go.kr/법령/건축법시행령");
     } else {
       html += okRow("절대높이", "제한 없음");
     }
     if (p.층수) {
-      if (p.층수.ok) html += okRow("지상층수", p.층수.계획 + "층  최고 " + p.층수.허용 + (p.층수.허용 !== "제한없음" ? "층" : "") + " 이하 만족", "국토계획법 시행령", "https://www.law.go.kr/법령/국토의계획및이용에관한법률시행령");
-      else html += ngRow("지상층수", p.층수.계획 + "층  최고 " + p.층수.허용 + "층 초과!", "국토계획법 시행령", "https://www.law.go.kr/법령/국토의계획및이용에관한법률시행령");
+      if (p.층수.ok) html += okRow("지상층수", `${p.층수.계획}층  최고 ${p.층수.허용}${p.층수.허용 !== "제한없음" ? "층" : ""} 이하 만족`);
+      else html += ngRow("지상층수", `${p.층수.계획}층  최고 ${p.층수.허용}층 초과!`);
     }
     if (p.일조권사선) {
-      html += warnRow("일조권사선", "정북방향 인접대지경계선에서 최소 " + p.일조권사선.최소이격 + "m 이격 필요", "건축법 제61조 제1항", "https://www.law.go.kr/법령/건축법");
+      html += warnRow("일조권사선", `정북방향 인접대지경계선에서 최소 ${p.일조권사선.최소이격}m 이격 필요`, "건축법 제61조 제1항", "https://www.law.go.kr/법령/건축법");
     }
     if (p.도로사선) {
-      if (p.도로사선.ok) html += okRow("도로사선", "건물높이 " + p.도로사선.계획높이 + "m  허용높이 " + p.도로사선.허용높이 + "m 이하 만족", "건축법 제61조 제2항", "https://www.law.go.kr/법령/건축법");
-      else html += ngRow("도로사선", "건물높이 " + p.도로사선.계획높이 + "m  허용높이 " + p.도로사선.허용높이 + "m 초과!", "건축법 제61조 제2항", "https://www.law.go.kr/법령/건축법");
+      if (p.도로사선.ok) html += okRow("도로사선", `건물높이 ${p.도로사선.계획높이}m  허용높이 ${p.도로사선.허용높이}m 이하 만족`, "건축법 제61조 제2항", "https://www.law.go.kr/법령/건축법");
+      else html += ngRow("도로사선", `건물높이 ${p.도로사선.계획높이}m  허용높이 ${p.도로사선.허용높이}m 초과!`, "건축법 제61조 제2항", "https://www.law.go.kr/법령/건축법");
     }
     html += `</div>`;
 
-    // 용도 검토
     if (p.용도) {
       html += `<div class="section"><div class="sec-title">## 3. 용도 적합성 검토</div>`;
-      if (p.용도.ok) html += okRow("주용도", "'" + p.용도.계획 + "'  " + r.용도지역 + " 허용 용도", "국토계획법 시행령 " + r.용도근거, "https://www.law.go.kr/법령/국토의계획및이용에관한법률시행령");
-      else if (p.용도.상태 === "불허") html += ngRow("주용도", "'" + p.용도.계획 + "'  " + r.용도지역 + " 불허 용도!", "국토계획법 시행령 " + r.용도근거, "https://www.law.go.kr/법령/국토의계획및이용에관한법률시행령");
-      else html += warnRow("주용도", "'" + p.용도.계획 + "'  허용 여부 별도 확인 필요", "국토계획법 시행령 " + r.용도근거, "https://www.law.go.kr/법령/국토의계획및이용에관한법률시행령");
+      if (p.용도.ok) html += okRow("주용도", `'${p.용도.계획}'  ${r.용도지역} 허용 용도`);
+      else if (p.용도.상태 === "불허") html += ngRow("주용도", `'${p.용도.계획}'  ${r.용도지역} 불허 용도!`);
+      else html += warnRow("주용도", `'${p.용도.계획}'  허용 여부 별도 확인 필요`);
       html += `</div>`;
     }
 
-    // 주차 검토
     if (p.주차) {
       html += `<div class="section"><div class="sec-title">## 4. 주차대수 검토</div>`;
       if (p.주차.계획 !== null && p.주차.계획 !== undefined) {
-        if (p.주차.ok) html += okRow("주차대수", "계획 " + p.주차.계획 + "대  ≥  법정 " + p.주차.법정 + "대 (" + p.주차.기준 + ")  여유 " + (p.주차.계획 - p.주차.법정) + "대", "주차장법 시행령 별표1", "https://www.law.go.kr/법령/주차장법시행령");
-        else html += ngRow("주차대수", "계획 " + p.주차.계획 + "대  <  법정 " + p.주차.법정 + "대 (" + p.주차.기준 + ")  " + (p.주차.법정 - p.주차.계획) + "대 부족!", "주차장법 시행령 별표1", "https://www.law.go.kr/법령/주차장법시행령");
+        if (p.주차.ok) html += okRow("주차대수", `계획 ${p.주차.계획}대  ≥  법정 ${p.주차.법정}대 (${p.주차.기준})  여유 ${p.주차.계획 - p.주차.법정}대`, "주차장법 시행령 별표1", "https://www.law.go.kr/법령/주차장법시행령");
+        else html += ngRow("주차대수", `계획 ${p.주차.계획}대  <  법정 ${p.주차.법정}대 (${p.주차.기준})  ${p.주차.법정 - p.주차.계획}대 부족!`, "주차장법 시행령 별표1", "https://www.law.go.kr/법령/주차장법시행령");
       } else {
-        html += row("[x]", "법정주차대수", p.주차.법정 + "대  (" + p.주차.기준 + ")", "green", "주차장법 시행령 별표1", "https://www.law.go.kr/법령/주차장법시행령");
+        html += row("[x]", "법정주차대수", `${p.주차.법정}대  (${p.주차.기준})`, "green");
       }
       html += `</div>`;
     }
-
     html += `</div>`;
   }
 
   html += `<div class="notice">※ 본 결과는 참고용이며, 정확한 기준은 해당 지자체 및 관련 조례 확인이 필요합니다.<br>※ 일조권/도로사선은 정확한 검토를 위해 배치도 검토가 필요합니다.</div>`;
-
   document.getElementById("result").innerHTML = html;
 }
 
