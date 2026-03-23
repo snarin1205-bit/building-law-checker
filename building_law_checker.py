@@ -492,23 +492,23 @@ def check_building_law(address: str, site_area: float = None, plan: dict = None)
     print(f"{'─'*65}")
 
     print(f"\n{BOLD}## 1. 용도지역 및 지구{RESET}")
-    print(f"  - [x] 용도지역: {GREEN}{zone_name}{RESET}  (근거: 국토계획법 제36조 | https://www.law.go.kr/법령/국토의계획및이용에관한법률)")
+    print(f"  - · 용도지역: {GREEN}{zone_name}{RESET}  (근거: 국토계획법 제36조 | https://www.law.go.kr/법령/국토의계획및이용에관한법률)")
     if districts:
         for d in districts:
-            print(f"  - [x] 지구단위계획: {YELLOW}{d}  ※ 별도 완화기준 적용 가능{RESET}")
+            print(f"  - · 지구단위계획: {YELLOW}{d}  ※ 별도 완화기준 적용 가능{RESET}")
     else:
-        print(f"  - [ ] 지구단위계획: 해당 없음")
+        print(f"  - · 지구단위계획: 해당 없음")
 
     print(f"\n{BOLD}## 2. 건축 가능 규모{RESET}")
     print(f"       {CYAN}근거: {ordinance_label}{RESET}")
     if bc_ratio:
-        line = f"  - [x] 건폐율: {GREEN}{bc_ratio}% 이하{RESET}"
+        line = f"  - · 건폐율: {GREEN}{bc_ratio}% 이하{RESET}"
         if site_area:
             max_bc = round(site_area * bc_ratio / 100, 2)
             line += f"  →  최대 건축면적 {GREEN}{max_bc}m²{RESET} ({max_bc/3.3058:.1f}평)"
         print(line + "  (근거: 국토계획법 시행령 제84조)")
 
-        line2 = f"  - [x] 용적률: {GREEN}{far_ratio}% 이하{RESET}"
+        line2 = f"  - · 용적률: {GREEN}{far_ratio}% 이하{RESET}"
         if site_area:
             max_far = round(site_area * far_ratio / 100, 2)
             line2 += f"  →  최대 연면적 {GREEN}{max_far}m²{RESET} ({max_far/3.3058:.1f}평)"
@@ -517,16 +517,16 @@ def check_building_law(address: str, site_area: float = None, plan: dict = None)
     print(f"\n{BOLD}## 3. 높이 제한 및 사선 제한{RESET}")
     abs_h = height_inf.get("절대높이", "없음")
     illo  = height_inf.get("일조권사선", True)
-    print(f"  - [x] 절대높이:   {GREEN}{abs_h}{RESET}  (근거: 건축법 시행령 제82조 | https://www.law.go.kr/법령/건축법시행령)")
-    print(f"  - [x] 일조권사선: {YELLOW if illo else GREEN}{'필요' if illo else '불필요'}{RESET}  (근거: 건축법 제61조 제1항 | https://www.law.go.kr/법령/건축법)")
-    print(f"  - [x] 도로사선:   {YELLOW}필요{RESET}  (근거: 건축법 제61조 제2항 | https://www.law.go.kr/법령/건축법)")
-    print(f"  - [x] 최고층수:   {GREEN}{max_floor}층 이하{RESET}" if max_floor < 999 else f"  - [x] 최고층수:   {GREEN}제한 없음{RESET}")
+    print(f"  - · 절대높이:   {GREEN}{abs_h}{RESET}  (근거: 건축법 시행령 제82조 | https://www.law.go.kr/법령/건축법시행령)")
+    print(f"  - · 일조권사선: {YELLOW if illo else GREEN}{'필요' if illo else '불필요'}{RESET}  (근거: 건축법 제61조 제1항 | https://www.law.go.kr/법령/건축법)")
+    print(f"  - · 도로사선:   {YELLOW}필요{RESET}  (근거: 건축법 제61조 제2항 | https://www.law.go.kr/법령/건축법)")
+    print(f"  - · 최고층수:   {GREEN}{max_floor}층 이하{RESET}" if max_floor < 999 else f"  - · 최고층수:   {GREEN}제한 없음{RESET}")
 
     if use_info:
         print(f"\n{BOLD}## 4. 허용 건축물 용도{RESET}")
         print(f"       근거: 국토계획법 시행령 {use_info['근거']} | https://www.law.go.kr/법령/국토의계획및이용에관한법률시행령")
-        print(f"  - [x] 허용: {GREEN}{', '.join(use_info['허용'])}{RESET}")
-        print(f"  - [ ] 불허: {RED}{', '.join(use_info['불허'])}{RESET}")
+        print(f"  - · 허용: {GREEN}{', '.join(use_info['허용'])}{RESET}")
+        print(f"  - · 불허: {RED}{', '.join(use_info['불허'])}{RESET}")
 
     if site_area and bc_ratio:
         max_far_v = round(site_area * far_ratio / 100, 2)
@@ -534,7 +534,7 @@ def check_building_law(address: str, site_area: float = None, plan: dict = None)
         print(f"       근거: 주차장법 시행령 별표1 | https://www.law.go.kr/법령/주차장법시행령")
         for use_nm, info in PARKING_TABLE.items():
             cnt = max(1, int(max_far_v / info["calc_area"]))
-            print(f"  - [x] {use_nm}: {GREEN}{cnt}대{RESET}  ({info['기준']})")
+            print(f"  - · {use_nm}: {GREEN}{cnt}대{RESET}  ({info['기준']})")
 
     # ─── 2단계 ───
     if not plan:
@@ -560,7 +560,7 @@ def check_building_law(address: str, site_area: float = None, plan: dict = None)
         max_bc = site_area * bc_ratio / 100
         a_bc   = round(ba / site_area * 100, 1)
         sur_bc = round(max_bc - ba, 2)
-        tag = f"  - {GREEN}✅ OK{RESET} " if ba <= max_bc else f"  - {RED}❌ NG{RESET} "
+        tag = f"  - {GREEN}O{RESET} " if ba <= max_bc else f"  - {RED}X{RESET} "
         msg = f"건축면적: {ba}m²  건폐율 {a_bc}% ({'허용 ' + str(bc_ratio) + '% 이하' if ba <= max_bc else '허용 ' + str(bc_ratio) + '% 초과!'})  {'여유' if ba<=max_bc else '초과'} {abs(sur_bc):.2f}m²"
         print(tag + msg)
         print(f"         근거: 국토계획법 시행령 제84조 | https://www.law.go.kr/법령/국토의계획및이용에관한법률시행령")
@@ -569,7 +569,7 @@ def check_building_law(address: str, site_area: float = None, plan: dict = None)
         max_far = site_area * far_ratio / 100
         a_far   = round(gfa / site_area * 100, 1)
         sur_far = round(max_far - gfa, 2)
-        tag = f"  - {GREEN}✅ OK{RESET} " if gfa <= max_far else f"  - {RED}❌ NG{RESET} "
+        tag = f"  - {GREEN}O{RESET} " if gfa <= max_far else f"  - {RED}X{RESET} "
         msg = f"연면적: {gfa}m²  용적률 {a_far}% ({'허용 ' + str(far_ratio) + '% 이하' if gfa <= max_far else '허용 ' + str(far_ratio) + '% 초과!'})  {'여유' if gfa<=max_far else '초과'} {abs(sur_far):.2f}m²"
         print(tag + msg)
         print(f"         근거: 국토계획법 시행령 제85조 | https://www.law.go.kr/법령/국토의계획및이용에관한법률시행령")
@@ -577,33 +577,33 @@ def check_building_law(address: str, site_area: float = None, plan: dict = None)
     print(f"\n{BOLD}## 2. 높이 및 층수 검토{RESET}")
     if height:
         if "없음" in abs_h:
-            print(f"  - {GREEN}✅ OK{RESET}   절대높이: 제한 없음")
+            print(f"  - {GREEN}O{RESET}   절대높이: 제한 없음")
         else:
             lim = int("".join(filter(str.isdigit, abs_h)))
             ok  = height <= lim
-            print(f"  - {GREEN+'✅ OK'+RESET if ok else RED+'❌ NG'+RESET}   절대높이: {height}m  허용 {abs_h} {'만족' if ok else '초과!'}")
+            print(f"  - {GREEN+'O'+RESET if ok else RED+'X'+RESET}   절대높이: {height}m  허용 {abs_h} {'만족' if ok else '초과!'}")
             print(f"         근거: 건축법 시행령 제82조 | https://www.law.go.kr/법령/건축법시행령")
 
     if floors:
         if max_floor >= 999:
-            print(f"  - {GREEN}✅ OK{RESET}   지상층수: {floors}층  최고층수 제한 없음")
+            print(f"  - {GREEN}O{RESET}   지상층수: {floors}층  최고층수 제한 없음")
         elif floors <= max_floor:
-            print(f"  - {GREEN}✅ OK{RESET}   지상층수: {floors}층  최고 {max_floor}층 이하 만족")
+            print(f"  - {GREEN}O{RESET}   지상층수: {floors}층  최고 {max_floor}층 이하 만족")
         else:
-            print(f"  - {RED}❌ NG{RESET}   지상층수: {floors}층  최고 {max_floor}층 초과!")
+            print(f"  - {RED}X{RESET}   지상층수: {floors}층  최고 {max_floor}층 초과!")
         print(f"         근거: 국토계획법 시행령 | https://www.law.go.kr/법령/국토의계획및이용에관한법률시행령")
         if bfloor:
-            print(f"  - [x] 지하층수: {bfloor}층  용도지역 층수제한 적용 제외")
+            print(f"  - · 지하층수: {bfloor}층  용도지역 층수제한 적용 제외")
 
     if height and illo:
         min_dist = round(height / 2, 1)
-        print(f"  - {YELLOW}⚠️  검토{RESET}  일조권 사선제한  →  정북방향 인접대지경계선에서 최소 {min_dist}m 이격 필요")
+        print(f"  - {YELLOW}△{RESET}  일조권 사선제한  →  정북방향 인접대지경계선에서 최소 {min_dist}m 이격 필요")
         print(f"         근거: 건축법 제61조 제1항 | https://www.law.go.kr/법령/건축법")
 
     if height and road_w:
         allow_h = road_w * 1.5 + 4
         ok = height <= allow_h
-        print(f"  - {GREEN+'✅ OK'+RESET if ok else RED+'❌ NG'+RESET}   도로사선: 건물높이 {height}m  도로 {road_w}m 기준 허용높이 {allow_h}m {'만족' if ok else '초과!'}")
+        print(f"  - {GREEN+'O'+RESET if ok else RED+'X'+RESET}   도로사선: 건물높이 {height}m  도로 {road_w}m 기준 허용높이 {allow_h}m {'만족' if ok else '초과!'}")
         print(f"         근거: 건축법 제61조 제2항 | https://www.law.go.kr/법령/건축법")
 
     if use and use_info:
@@ -612,11 +612,11 @@ def check_building_law(address: str, site_area: float = None, plan: dict = None)
         is_allow = any(cu in a.replace(" ", "") or a.replace(" ", "") in cu for a in use_info["허용"])
         is_deny  = any(cu in d.replace(" ", "") or d.replace(" ", "") in cu for d in use_info["불허"])
         if is_deny:
-            print(f"  - {RED}❌ NG{RESET}   주용도 '{use}'  {zone_name} 불허 용도!")
+            print(f"  - {RED}X{RESET}   주용도 '{use}'  {zone_name} 불허 용도!")
         elif is_allow:
-            print(f"  - {GREEN}✅ OK{RESET}   주용도 '{use}'  {zone_name} 허용 용도")
+            print(f"  - {GREEN}O{RESET}   주용도 '{use}'  {zone_name} 허용 용도")
         else:
-            print(f"  - {YELLOW}⚠️  검토{RESET}  주용도 '{use}'  허용 여부 별도 확인 필요")
+            print(f"  - {YELLOW}△{RESET}  주용도 '{use}'  허용 여부 별도 확인 필요")
         print(f"         근거: 국토계획법 시행령 {use_info['근거']} | https://www.law.go.kr/법령/국토의계획및이용에관한법률시행령")
 
     if gfa:
@@ -634,9 +634,9 @@ def check_building_law(address: str, site_area: float = None, plan: dict = None)
         legal = max(1, int(gfa / pk_info["calc_area"]))
         if prk is not None:
             ok = prk >= legal
-            print(f"  - {GREEN+'✅ OK'+RESET if ok else RED+'❌ NG'+RESET}   계획 {prk}대  {'≥' if ok else '<'}  법정 {legal}대 ({pk_info['기준']})  {'여유 ' + str(prk-legal) + '대' if ok else str(legal-prk) + '대 부족!'}")
+            print(f"  - {GREEN+'O'+RESET if ok else RED+'X'+RESET}   계획 {prk}대  {'≥' if ok else '<'}  법정 {legal}대 ({pk_info['기준']})  {'여유 ' + str(prk-legal) + '대' if ok else str(legal-prk) + '대 부족!'}")
         else:
-            print(f"  - [x] 법정주차대수: {GREEN}{legal}대{RESET}  ({pk_info['기준']})")
+            print(f"  - · 법정주차대수: {GREEN}{legal}대{RESET}  ({pk_info['기준']})")
 
     print(f"\n  {YELLOW}※ 지자체 조례에 따라 달라질 수 있음")
     print(f"  ※ 일조권/도로사선은 정확한 검토를 위해 배치도 검토 필요{RESET}")
@@ -647,9 +647,10 @@ def check_building_law(address: str, site_area: float = None, plan: dict = None)
 # 실행 - 여기를 수정해서 사용하세요
 # ──────────────────────────────────────────────
 if __name__ == "__main__":
+ㄴ
+    address   = "강원특별자치도 강릉시 옥천동 111"
+    site_area = 18,691.00
 
-    address   = "대전광역시 유성구 지족동 1093"
-    site_area = 330.0
 
     plan = {
         "주용도":       "공동주택",
