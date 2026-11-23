@@ -8,6 +8,7 @@ from building_law_checker import LAND_API_KEY
 from vworld_client import lookup_site, relay_configured
 from site_map import render_maps, parcel_polygon
 from site_cad import export_cad
+import ngii_dxf
 from law_core_v2 import (CORE_PACK_ID, route_laws, preview_area, far_counted_area,
                          FAR_EXCLUSION_KEYS, sort_findings, findings_to_markdown,
                          findings_to_json, parking_required,
@@ -30,9 +31,34 @@ def _cad(x, y, pnu, origin):
     return export_cad(x, y, pnu, parcel_polygon(x, y), origin=origin)
 
 
+@st.cache_data(show_spinner="수치지도(국토지리정보원) CAD를 만드는 중...", ttl=600)
+def _ngii(x, y, origin, stamp):
+    return ngii_dxf.export_ngii(x, y, parcel_polygon(x, y), origin=origin)
+
+
 st.set_page_config(page_title="현상설계 법규 분석 v2", page_icon="🏛️", layout="wide")
 st.title("현상설계 법규 분석 · Core v2")
 st.caption("기존 VWorld 주소 조회 + OpenCrab Core v2 판단 정책 기반 사전 검토")
+with st.sidebar:
+    st.subheader("수치지도 도엽 (국토정보플랫폼)")
+    st.caption("1:5,000 수치지형도(DXF)를 국토정보플랫폼에서 한 번 받아 올리면 이 PC에만 저장되고, 이후 같은 지역은 주소만 넣으면 CAD로 나옵니다. 재배포 제한 자료라 저장소·외부에는 올라가지 않습니다.")
+    _up = st.file_uploader("도엽 파일(.zip / .dxf)", type=["zip", "dxf"], accept_multiple_files=True, key="ngii_up")
+    for _f in _up or []:
+        if st.session_state.get("ngii_done", {}).get(_f.name + str(_f.size)):
+            continue
+        _r = ngii_dxf.import_file(_f.name, _f.getvalue())
+        st.session_state.setdefault("ngii_done", {})[_f.name + str(_f.size)] = True
+        st.session_state["ngii_stamp"] = st.session_state.get("ngii_stamp", 0) + 1
+        for _s in _r["sheets"]:
+            (st.success if _s["plausible"] else st.warning)(f"{_s['name']} 저장" + ("" if _s["plausible"] else " — 좌표 범위가 중부원점(EPSG:5186)으로 보이지 않아 사용하지 않습니다"))
+        for _e in _r["errors"]:
+            st.error(_e)
+    _idx = ngii_dxf.load_index()["sheets"]
+    if _idx:
+        st.caption("저장된 도엽: " + ", ".join(sorted(_idx)))
+    else:
+        st.caption("저장된 도엽 없음")
+
 st.warning("법률 판단 보조 도구입니다. 실무 제출·허가 전 공식 원문, 최신 조례, 지구단위계획 및 전문가 검토가 필수입니다.")
 st.caption(f"판단 정책: OpenCrab Core v2 ({CORE_PACK_ID}) · 로컬 정책 어댑터 / 실시간 OpenCrab 연결 아님")
 
@@ -159,6 +185,16 @@ if submitted:
                     st.caption(f"CAD 좌표계 {cd['epsg']}(중부원점 TM, 단위 m) · 필지 {n_.get('필지', 0)} / 건물 {n_.get('건물', 0)} / 도로 {n_.get('도로', 0)} / 용도지역 {n_.get('용도지역', 0)} · 대상 필지는 '대상필지' 레이어(빨강)")
                     for note in cd["notes"]:
                         st.warning(note)
+                    _ng = _ngii(map_xy[0], map_xy[1], cd["origin"]["mode"], st.session_state.get("ngii_stamp", 0))
+                    if _ng["status"] == "OK":
+                        st.download_button(f"수치지도(국토지리정보원 1:5,000) CAD(.dxf) 저장 — 도엽 {', '.join(_ng['sheets'])}", _ng["dxf"], file_name="ngii_digital_map.dxf", mime="application/dxf")
+                        st.caption(f"국토지리정보원 수치지형도에서 필지 주변 도형 {_ng['count']:,}개를 복사했습니다(원본 레이어 유지). 출처: 국토지리정보원.")
+                    elif _ng["status"] == "NO_SHEET":
+                        st.info("이 지역의 국토지리정보원 수치지도 도엽이 저장돼 있지 않습니다. 왼쪽 사이드바에서 국토정보플랫폼 1:5,000 DXF 도엽을 올리면 이 위치도 CAD로 받을 수 있습니다.")
+                    elif _ng["status"] == "EMPTY":
+                        st.warning("저장된 도엽은 있지만 필지 주변에서 복사할 도형이 없습니다(도엽 범위·좌표계 확인).")
+                    else:
+                        st.warning(f"수치지도 CAD 생성 실패: {_ng['error']}")
                 else:
                     st.warning(f"CAD 생성 실패: {cd['error']}")
             d1, d2 = st.columns(2)
