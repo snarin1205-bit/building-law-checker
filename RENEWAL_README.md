@@ -1,7 +1,8 @@
 # Building Law Checker — OpenCrab Core v2 Renewal
 
-Original `app.py` and `building_law_checker.py` are deliberately preserved (legacy; still contains the old
-north-daylight / road-slope / parking calculations that the renewal does not use). The new entry point is `app_v2.py`.
+The renewal screen is now `app.py` (formerly `app_v2.py`) so the existing Streamlit deployment (main file `app.py`) serves it
+without changing deployment settings. The previous screen is preserved as `legacy_app.py` (still contains the old
+north-daylight / road-slope / parking calculations that the renewal does not use).
 
 ## Run
 
@@ -10,14 +11,14 @@ pip install -r requirements.txt
 # 환경변수 (키는 코드·Git에 넣지 말 것)
 #   VWORLD_API_KEY   VWorld 인증키
 #   VWORLD_DOMAIN    키에 등록한 서비스 URL (기본 localhost:8501) — 키가 URL에 묶여 있어 domain 파라미터가 필요
-streamlit run app_v2.py
+streamlit run app.py
 ```
 
 Streamlit 배포에서는 Secrets에 `VWORLD_API_KEY`, `VWORLD_DOMAIN`(배포 주소로 등록한 키)을 넣는다.
 
 ## Architecture
 
-- `app_v2.py`: UI. 외부 자료 조회, 법규 우선순위, 대전 조례 기준, 규모/주차 산술 시나리오를 분리해서 보여준다.
+- `app.py`: UI (구 app_v2.py). 외부 자료 조회, 법규 우선순위, 대전 조례 기준, 규모/주차 산술 시나리오를 분리해서 보여준다.
 - `law_core_v2.py`: 오프라인 정책 어댑터. REQUIRED / CONDITIONAL / LOW_PRIORITY / UNKNOWN. 법규 → 조건 → 설계 영향 → 대응.
   - 부설주차장: 주차장법 시행령 별표 1 (공포 36623, 시행 2026-08-28), 비고의 끝수 처리(0.5 이상 1대) 적용
   - 용적률 산정 제외 면적: 건축법 시행령 제119조제1항제4호 (공포 36817, 시행 2026-11-12)
@@ -27,13 +28,13 @@ Streamlit 배포에서는 Secrets에 `VWORLD_API_KEY`, `VWORLD_DOMAIN`(배포 �
   OK / NOT_FOUND / ERROR 로 구분한다. NOT_FOUND 는 법적 '비적용' 확정이 아니다.
 - `law_sync.py`: 법령·조례 개정 감지(네트워크 필요, CI 제외). 값을 자동으로 바꾸지 않고 재검토 필요만 알린다.
 - `data/law_snapshots/`: 근거 원문 사본(출처·시행일 표기). 테스트가 코드 값과 사본을 대조한다.
-- `building_law_checker.py`: legacy. VWorld 주소→좌표 함수(`get_coordinates`)만 app_v2 가 재사용한다.
+- `building_law_checker.py`: legacy. VWorld 주소→좌표 함수(`get_coordinates`)만 app.py 가 재사용한다.
 
 ## QA / Safety
 
 ```bash
 python -m unittest discover -s tests -v
-python -m py_compile app_v2.py law_core_v2.py ordinance_daejeon.py law_sync.py vworld_client.py
+python -m py_compile app.py law_core_v2.py ordinance_daejeon.py law_sync.py vworld_client.py
 python law_sync.py     # 법령·조례 개정 여부 확인 (프록시 접근 필요)
 ```
 
