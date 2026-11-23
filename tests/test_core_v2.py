@@ -139,7 +139,7 @@ class CoreV2Tests(unittest.TestCase):
 
     def test_parking_ordinance_override_is_marked(self):
         r = parking_required([("근생숙박", 400)], {"근생숙박": 134})
-        self.assertEqual(r["rows"][0]["basis"], "조례 입력값(미검증)")
+        self.assertEqual(r["rows"][0]["basis"], "직접 입력값(미검증)")
         self.assertEqual(parking_required([("골프장", 1)], {"골프장": 5})["status"], "UNKNOWN")
 
     def test_parking_invalid_inputs(self):

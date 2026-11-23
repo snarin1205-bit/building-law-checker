@@ -306,26 +306,43 @@ def _final(sum_value):
     return n + (1 if sum_value - n >= Fraction(1, 2) else 0)
 
 
-def parking_required(items, ordinance_div=None):
+def _multi_house(area):
+    """대전광역시 주차장 조례 별표 6 제4호 다중주택. 50㎡ 이하는 조례에 규정이 없어 None(미확정)."""
+    if area <= 50:
+        return None
+    if area <= 150:
+        return Fraction(1)
+    return 1 + (area - 150) / 50
+
+
+def parking_required(items, ordinance_div=None, rules=None, manual=None, undefined=None,
+                     law_meta=None, notes=None):
     """부설주차장 법정 대수 산술 시나리오(신축).
 
-    items: [(규칙키, 수량), ...] — PARKING_RULES 키. 수량 단위는 PARKING_RULES 참고.
-    ordinance_div: {규칙키: 조례로 확인한 나눔값} 로 시설면적 기준(area kind)을 대체(비고 11).
+    items: [(규칙키, 수량), ...] — 규칙표(rules)의 키. 수량 단위는 규칙표 참고.
+    rules/manual/undefined/law_meta: 지자체 조례 규칙표를 넘기면 그 표로 계산(기본: 주차장법 시행령 별표 1).
+    ordinance_div: {규칙키: 직접 확인한 나눔값} 로 시설면적 기준 용도를 대체(미검증으로 표시).
     원문이 정하지 않은 부분(소수 첫째자리 처리 방식, 0.5~1대 구간)은 후보값을 모두 반환하고
     확정하지 않는다(count=None, ambiguous=True).
     """
     ordinance_div = ordinance_div or {}
+    rules = PARKING_RULES if rules is None else rules
+    manual = PARKING_MANUAL_KEYS if manual is None else manual
+    undefined = undefined or {}
+    meta = law_meta or PARKING_LAW_META
     if not items:
         return {"status": "UNKNOWN", "reason": "용도·수량 입력 없음"}
-    manual = [k for k, _ in items if k in PARKING_MANUAL_KEYS]
-    if manual:
+    manual_hit = [k for k, _ in items if k in manual]
+    if manual_hit:
         return {"status": "UNKNOWN",
-                "reason": "표 제5호 시설물은 「주택건설기준 등에 관한 규정」 제27조로 별도 산정(비고 4: 별도 합산)",
-                "manual_only": [PARKING_MANUAL_KEYS[k] for k in manual],
-                "law": PARKING_LAW_META}
+                "reason": "표 제5호 시설물은 「주택건설기준 등에 관한 규정」 제27조로 별도 산정",
+                "manual_only": [manual[k] for k in manual_hit], "law": meta}
+    undef_hit = [k for k, _ in items if k in undefined]
+    if undef_hit:
+        return {"status": "UNKNOWN", "reason": "; ".join(undefined[k] for k in undef_hit), "law": meta}
     rows = []
     for key, qty in items:
-        if key not in PARKING_RULES:
+        if key not in rules:
             return {"status": "UNKNOWN", "reason": f"알 수 없는 용도 키: {key}"}
         try:
             q = _frac(qty)
@@ -333,49 +350,52 @@ def parking_required(items, ordinance_div=None):
             return {"status": "UNKNOWN", "reason": f"수량 입력 오류: {key}"}
         if q < 0:
             return {"status": "UNKNOWN", "reason": f"수량은 0 이상이어야 함: {key}"}
-        no, label, unit, mult, div = PARKING_RULES[key]
-        basis = "법령 원문"
+        no, label, unit, mult, div = rules[key]
+        basis = "법령·조례 원문"
         if key == "단독주택":
             v = _detached(q)
+        elif key == "다중주택":
+            v = _multi_house(q)
+            if v is None:
+                return {"status": "UNKNOWN", "reason": "다중주택 시설면적 50㎡ 이하는 조례 별표 6에 산정 규정이 없음",
+                        "law": meta}
         else:
             if key in ordinance_div:
                 try:
                     div = _frac(ordinance_div[key])
                 except (ValueError, TypeError):
-                    return {"status": "UNKNOWN", "reason": f"조례 기준 입력 오류: {key}"}
+                    return {"status": "UNKNOWN", "reason": f"기준 입력 오류: {key}"}
                 if div <= 0 or unit != "시설면적㎡":
-                    return {"status": "UNKNOWN", "reason": f"조례 기준은 시설면적 기준 용도의 양수만 허용: {key}"}
-                basis = "조례 입력값(미검증)"
-            v = q * mult / div
+                    return {"status": "UNKNOWN", "reason": f"직접 입력 기준은 시설면적 기준 용도의 양수만 허용: {key}"}
+                basis = "직접 입력값(미검증)"
+            else:
+                div = _frac(div)
+            v = q * _frac(mult) / div
         rows.append({"table_no": no, "use": label, "quantity": float(q), "unit": unit,
                      "exact": float(v), "basis": basis, "_v": v})
-    # 비고 4: 용도별로 소수점 이하 첫째자리까지 산정한 대수를 합산 (처리 방식은 원문 미정 → 후보 2개)
     sums = {"절사": sum((_trunc1(r["_v"]) for r in rows), Fraction(0)),
             "반올림": sum((_round1(r["_v"]) for r in rows), Fraction(0))}
     candidates, reasons = set(), []
     for name, sm in sums.items():
-        f = _final(sm)
         if sm < 1:
-            # 비고 6 단서(총주차대수 1대 미만이면 0)와 0.5 이상 1로 보는 본문이 0.5~1 구간에서 충돌 가능
             if sm >= Fraction(1, 2):
                 candidates.update({0, 1})
                 reasons.append("합계가 0.5 이상 1 미만: 비고 6 본문(→1대)과 단서(1대 미만→0)의 적용 확인 필요")
             else:
                 candidates.add(0)
         else:
-            candidates.add(f)
+            candidates.add(_final(sm))
     for r in rows:
         r.pop("_v")
     ordered = sorted(candidates)
     ambiguous = len(ordered) > 1
-    if sums["절사"] != sums["반올림"] and not ambiguous:
-        pass  # 처리 방식이 달라도 최종 대수가 같으면 영향 없음
-    elif ambiguous and not reasons:
+    if ambiguous and not reasons:
         reasons.append("용도별 소수 첫째자리 처리 방식(절사/반올림)에 따라 최종 대수가 달라짐 — 원문이 방식을 정하지 않음")
     return {"status": "PREVIEW", "rows": rows,
             "sum_one_decimal": {k: float(v) for k, v in sums.items()},
             "candidates": ordered, "ambiguous": ambiguous,
             "count": None if ambiguous else ordered[0],
             "ambiguity_reasons": reasons,
-            "scope": "신축 산술 시나리오. 조례(비고 11), 용도변경·증축(비고 5·7), 장애인전용(비고 10) 등 미반영",
-            "law": PARKING_LAW_META, "source_url": LAW_URLS["주차장법"]}
+            "scope": "신축 산술 시나리오. 용도변경·증축(비고 5·7), 경형자동차 인정(비고 12) 등 미반영",
+            "notes": list(notes or []),
+            "law": meta, "source_url": LAW_URLS["주차장법"]}
