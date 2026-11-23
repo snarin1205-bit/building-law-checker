@@ -11,6 +11,7 @@ from law_core_v2 import (CORE_PACK_ID, route_laws, preview_area, far_counted_are
                          findings_to_json, parking_required,
                          PARKING_RULES, PARKING_MANUAL_KEYS)
 from ordinance_parse import CANON_ZONES
+from review_sheet import ReviewInput, USE_LABELS, build_review, review_to_json, review_to_markdown, summary_values
 from ordinance_regions import zone_limits_for, region_of, connected_count
 from sunlight_regions import setback as sun_setback, note as sun_note, region_data as sun_region_data
 from parking_regions import build as pk_build, parking_required_region, region_data as pk_region_data, follows_decree as pk_follows
@@ -27,9 +28,10 @@ with st.form("site_form"):
     left, right = st.columns(2)
     with left:
         address = st.text_input("주소/지번", placeholder="예: 대전광역시 유성구 ...")
-        building_use = st.text_input("건축물 주용도", placeholder="예: 공공업무시설, 도서관")
+        building_use = st.selectbox("건축물 주용도 (건축법 시행령 별표 1)", USE_LABELS)
         site_area = st.number_input("대지면적 (㎡)", min_value=0.0, value=0.0)
         is_public = st.checkbox("공공건축물")
+        total_floor = st.number_input("계획 연면적 (㎡) — 비우면 용적률 상한 기준으로 가정", min_value=0.0, value=0.0)
     with right:
         is_housing = st.checkbox("주택사업/정비사업")
         manual_zone = st.selectbox("용도지역 직접 선택 (자동 조회가 안 될 때만)",
@@ -37,6 +39,9 @@ with st.form("site_form"):
         district_choice = st.selectbox("지구단위계획 적용 여부(수동 확인)", ["미확인", "적용", "비적용"])
         covered = st.number_input("계획 건축면적 (㎡)", min_value=0.0, value=0.0)
         far_area = st.number_input("용적률 산정용 연면적 (㎡, 검토값)", min_value=0.0, value=0.0)
+        use_floor = st.number_input("해당 용도 바닥면적 합계 (㎡) — 비우면 연면적", min_value=0.0, value=0.0)
+        typical_floor = st.number_input("3층 이상 대표층의 거실 바닥면적 (㎡) — 직통계단 판정용", min_value=0.0, value=0.0)
+        basement_floor = st.number_input("지하층 거실 바닥면적 (㎡) — 직통계단 판정용", min_value=0.0, value=0.0)
     submitted = st.form_submit_button("법규 리스크 분석", type="primary")
 
 if submitted:
@@ -86,7 +91,40 @@ if submitted:
             st.info(f"자동 조회가 되지 않아 직접 선택한 용도지역({manual_zone})을 사용합니다 — 토지이용계획확인서로 확인하세요.")
         zones = [manual_zone]
 
-    st.subheader("2. 법규 검토 우선순위")
+    rin = ReviewInput(address=address, zones=tuple(zones), use=building_use, site_area=site_area or None,
+                      total_floor_area=total_floor or None, use_floor_area=use_floor or None,
+                      typical_floor_area=typical_floor or None, basement_floor_area=basement_floor or None,
+                      is_public=is_public, has_district_plan=district)
+    review_rows = build_review(rin)
+    st.subheader("2. 법규검토서 — 이 대지에서 지켜야 할 기준")
+    vals = summary_values(review_rows)
+    if vals:
+        cols = st.columns(len(vals))
+        for c, (label, v) in zip(cols, vals.values()):
+            c.metric(label, f"{v:,.0f}" if float(v).is_integer() else f"{v:,.1f}")
+        if not total_floor and "max_floor_area" in vals:
+            st.caption("연면적을 입력하지 않아 주차·조경·방화구획은 **용적률 상한 기준 최대 연면적을 가정**해 계산했습니다(상태: 조건부).")
+    st.table([{"구분": r.section, "항목": r.item, "근거": r.basis, "기준": r.standard, "이 대지 적용값": r.applied,
+               "설계 영향": r.impact, "상태": r.status} for r in review_rows])
+    st.caption("상태: 확정(원문+입력으로 결정) · 조건부(가정·추가 확인 필요) · 미확인(입력 부족) · 미연결(해당 법규 데이터 없음 — 직접 확인)")
+    sel = st.selectbox("항목별 비고·근거 원문 보기", [f"{r.section} · {r.item}" for r in review_rows], key="review_sel")
+    chosen = review_rows[[f"{r.section} · {r.item}" for r in review_rows].index(sel)]
+    for n in chosen.notes:
+        st.write("· " + n)
+    if chosen.source:
+        try:
+            from pathlib import Path
+            with st.expander(f"근거 원문 사본: {chosen.source}"):
+                st.text(Path(chosen.source).read_text(encoding="utf-8")[:6000])
+        except Exception:
+            st.caption("원문 사본을 불러오지 못했습니다: " + chosen.source)
+    rctx = {"주소": address or "미입력", "용도지역": ", ".join(zones) if zones else "미확인", "주용도": building_use,
+            "대지면적(㎡)": site_area or "미입력", "연면적(㎡)": total_floor or "미입력(용적률 상한 가정)"}
+    e1, e2 = st.columns(2)
+    e1.download_button("법규검토서 .md 저장", review_to_markdown(review_rows, rctx), file_name="law_review_sheet.md", mime="text/markdown")
+    e2.download_button("법규검토서 .json 저장(수치 포함)", review_to_json(review_rows, rctx), file_name="law_review_sheet.json", mime="application/json")
+
+    st.subheader("3. 법규군별 검토 우선순위 (참고)")
     findings = route_laws(
         building_use=building_use, site_address=address,
         site_area=site_area or None, is_public=is_public,
@@ -114,12 +152,12 @@ if submitted:
     zl = zone_limits_for(address, zones)
     if zl["status"] == "NO_REGION":
         if address.strip():
-            st.subheader("2-1. 지자체 조례 기준")
+            st.subheader("4. 지자체 도시계획 조례 기준")
             n_all, n_local = connected_count()
             st.info(f"이 주소의 지자체 도시계획 조례는 아직 연결되어 있지 않습니다(연결: 광역시·특별시 8곳과 도 소재 시·군 {n_local}곳). "
                     "건폐율·용적률은 해당 지자체 도시계획 조례 원문으로 직접 확인하세요.")
     else:
-        st.subheader(f"2-1. {zl['region']} 조례 기준 (원문 연결)")
+        st.subheader(f"4. {zl['region']} 도시계획 조례 기준 (원문 연결)")
         if zl["matches"]:
             st.table([{"용도지역": m["zone"],
                        "건폐율 상한(%)": m["coverage_max_pct"] if m["coverage_max_pct"] is not None else "미확인",
@@ -155,7 +193,7 @@ if submitted:
         st.caption("유성구 조례(주차장·도시계획)에는 건폐율·용적률·부설주차장 설치기준 수치가 없고 "
                    "광역시 조례를 따릅니다. 구 조례의 인근설치 300m, 설치의무 면제 규정은 주차 계산 결과의 참고 항목에 표시됩니다.")
 
-    st.subheader("3. 규모 시나리오 계산")
+    st.subheader("5. 규모·주차 시나리오 계산 (직접 입력)")
     st.info("법규 적용 비율은 자동 확정하지 않습니다. 아래 수치를 직접 확인해서 입력하면 산술 시나리오만 계산합니다.")
     st.session_state["site_snapshot"] = {
         "site_area": site_area, "covered": covered, "far_area": far_area,
