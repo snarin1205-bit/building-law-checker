@@ -4,19 +4,90 @@
 '조회 실패'와 '해당 없음'을 구분하지 못했고, 인증키의 서비스 URL 제한(domain 파라미터)을 보내지 않아
 INCORRECT_KEY 가 조용히 '미확인'이 되었다. 지구단위계획은 LT_C_UQ141 레이어이다(LT_C_UQ112 는 다른 레이어).
 
-환경변수: VWORLD_API_KEY(필수), VWORLD_DOMAIN(키에 등록한 서비스 URL, 기본 localhost:8501)
+환경변수
+  VWORLD_API_KEY / VWORLD_DOMAIN   직접 호출용(국내 IP). 키에 등록한 서비스 URL 이 VWORLD_DOMAIN.
+  VWORLD_RELAY_URL / VWORLD_RELAY_TOKEN   중계 함수(api/vworld.js, 서울 리전) 사용. 설정되면 중계가 우선이며
+                                          이때 앱에는 VWorld 키가 필요 없다(키는 중계 쪽 환경변수에만 있음).
+해외 서버(Streamlit Cloud 등)에서는 VWorld 직접 호출이 막혀 중계를 쓴다.
 """
 import os
+import re
 import time
 
 LAYER_ZONE = "LT_C_UQ111"           # 용도지역(도시지역)
 LAYER_DISTRICT_PLAN = "LT_C_UQ141"  # 지구단위계획구역
 DATA_URL = "https://api.vworld.kr/req/data"
+ADDRESS_URL = "https://api.vworld.kr/req/address"
 NON_RETRY_CODES = {"INCORRECT_KEY", "INVALID_KEY", "UNAVAILABLE_KEY", "OVER_REQUEST_LIMIT"}
+_KEY_RE = re.compile(r"[A-Fa-f0-9]{8}-[A-Fa-f0-9]{4}-[A-Fa-f0-9]{4}-[A-Fa-f0-9]{4}-[A-Fa-f0-9]{12}")
 
 
 def _config(key=None, domain=None):
     return key or os.getenv("VWORLD_API_KEY", ""), domain or os.getenv("VWORLD_DOMAIN", "localhost:8501")
+
+
+def relay_configured():
+    return bool(os.getenv("VWORLD_RELAY_URL") and os.getenv("VWORLD_RELAY_TOKEN"))
+
+
+def _snippet(text, n=80):
+    return _KEY_RE.sub("<KEY>", " ".join(str(text).split()))[:n]
+
+
+def make_relay_getter(url, token, http_get=None):
+    """VWorld 직접 호출 인터페이스(getter(url, params, timeout))를 중계 호출로 바꿔준다."""
+    def getter(target_url, params=None, timeout=None):
+        get = http_get
+        if get is None:
+            import requests
+            get = requests.get
+        params = params or {}
+        if target_url == ADDRESS_URL:
+            rp = {"action": "geocode", "address": params.get("address", ""), "type": params.get("type", "")}
+        elif target_url == DATA_URL:
+            layer = params.get("data")
+            action = {LAYER_ZONE: "zone", LAYER_DISTRICT_PLAN: "plan"}.get(layer)
+            if not action:
+                raise ValueError(f"중계가 허용하지 않는 레이어: {layer}")
+            m = re.match(r"POINT\(([-\d.]+) ([-\d.]+)\)", params.get("geomFilter", ""))
+            if not m:
+                raise ValueError("좌표 형식 오류")
+            rp = {"action": action, "x": m.group(1), "y": m.group(2)}
+        else:
+            raise ValueError("알 수 없는 호출 대상")
+        return get(url, params=rp, headers={"x-relay-token": token}, timeout=timeout)
+    return getter
+
+
+def _default_getter(getter):
+    if getter is not None:
+        return getter
+    if relay_configured():
+        return make_relay_getter(os.environ["VWORLD_RELAY_URL"], os.environ["VWORLD_RELAY_TOKEN"])
+    import requests
+    return requests.get
+
+
+def _response(r):
+    """응답에서 VWorld 'response' 딕셔너리를 꺼낸다. 비JSON·중계 오류는 원인을 담은 예외로 올린다(키 마스킹)."""
+    try:
+        body = r.json()
+    except Exception:
+        status = getattr(r, "status_code", "?")
+        text = getattr(r, "text", "")
+        raise ValueError(f"비JSON 응답 HTTP {status} '{_snippet(text)}'")
+    if isinstance(body, dict) and "response" in body:
+        return body["response"]
+    if isinstance(body, dict) and "error" in body:  # 중계 함수의 오류 응답
+        extra = body.get("detail") or body.get("upstream_status") or ""
+        raise ValueError(f"중계 오류 {body['error']} {extra} {_snippet(body.get('head', ''), 60)}".strip())
+    raise ValueError(f"예상하지 못한 응답 형식 '{_snippet(body)}'")
+
+
+def _fail_msg(prefix, e):
+    if isinstance(e, ValueError):
+        return f"{prefix}{_snippet(str(e), 140)}"
+    return f"{prefix}응답 처리 실패({type(e).__name__})"
 
 
 def query_layer(layer, x, y, key=None, domain=None, getter=None, retries=2, sleep=1.0):
@@ -24,21 +95,18 @@ def query_layer(layer, x, y, key=None, domain=None, getter=None, retries=2, slee
     OK 는 feature 가 있다는 뜻, NOT_FOUND 는 조회는 성공했으나 해당 지점에 feature 가 없다는 뜻이다
     (법적 '비적용' 확정이 아님). ERROR 는 조회 자체가 실패한 것이며 오류 메시지에 키는 포함하지 않는다."""
     key, domain = _config(key, domain)
-    if not key:
-        return {"status": "ERROR", "names": [], "error": "VWORLD_API_KEY 미설정"}
-    if getter is None:
-        import requests  # 지연 import: 오프라인 테스트·CI 에 requests 가 없어도 모듈을 불러올 수 있게 함
-        getter = requests.get
+    if not key and not relay_configured():
+        return {"status": "ERROR", "names": [], "error": "VWORLD_API_KEY 미설정(중계도 미설정)"}
+    getter = _default_getter(getter)
     params = {"service": "data", "request": "GetFeature", "data": layer, "key": key, "domain": domain,
               "geomFilter": f"POINT({x} {y})", "geometry": "false", "attribute": "true",
               "format": "json", "size": "10"}
     last = "알 수 없는 오류"
     for attempt in range(retries + 1):
         try:
-            r = getter(DATA_URL, params=params, timeout=20)
-            resp = r.json()["response"]
-        except Exception as e:  # 네트워크 오류·JSON 아님: 재시도
-            last = f"응답 처리 실패({type(e).__name__})"
+            resp = _response(getter(DATA_URL, params=params, timeout=20))
+        except Exception as e:  # 네트워크 오류·비JSON: 재시도
+            last = _fail_msg("", e)
             if attempt < retries:
                 time.sleep(sleep)
             continue
@@ -71,23 +139,18 @@ def lookup_district_plan(x, y, **kw):
     return query_layer(LAYER_DISTRICT_PLAN, x, y, **kw)
 
 
-ADDRESS_URL = "https://api.vworld.kr/req/address"
-
-
 def geocode(address, key=None, domain=None, getter=None, retries=2, sleep=1.0, timeout=20):
     """주소 → 좌표. 지번(parcel) → 도로명(road) 순으로 시도한다.
 
     반환: {"status": "OK"|"NOT_FOUND"|"ERROR", "x": float|None, "y": float|None, "type": str|None, "error": str|None}
-    ERROR 는 어느 유형에서든 조회 자체가 실패한 경우(오류 코드·예외명 포함, 키는 포함하지 않음).
+    ERROR 는 어느 유형에서든 조회 자체가 실패한 경우(오류 코드·예외명·응답 앞부분 포함, 키는 포함하지 않음).
     모든 유형이 NOT_FOUND 이면 NOT_FOUND."""
     key, domain = _config(key, domain)
     if not (address or "").strip():
         return {"status": "NOT_FOUND", "x": None, "y": None, "type": None, "error": None}
-    if not key:
-        return {"status": "ERROR", "x": None, "y": None, "type": None, "error": "VWORLD_API_KEY 미설정"}
-    if getter is None:
-        import requests
-        getter = requests.get
+    if not key and not relay_configured():
+        return {"status": "ERROR", "x": None, "y": None, "type": None, "error": "VWORLD_API_KEY 미설정(중계도 미설정)"}
+    getter = _default_getter(getter)
     errors = []
     for addr_type in ("parcel", "road"):
         params = {"service": "address", "request": "getcoord", "key": key, "domain": domain,
@@ -95,10 +158,9 @@ def geocode(address, key=None, domain=None, getter=None, retries=2, sleep=1.0, t
         last = None
         for attempt in range(retries + 1):
             try:
-                r = getter(ADDRESS_URL, params=params, timeout=timeout)
-                resp = r.json()["response"]
+                resp = _response(getter(ADDRESS_URL, params=params, timeout=timeout))
             except Exception as e:
-                last = f"{addr_type}: 응답 처리 실패({type(e).__name__})"
+                last = _fail_msg(f"{addr_type}: ", e)
                 if attempt < retries:
                     time.sleep(sleep)
                 continue

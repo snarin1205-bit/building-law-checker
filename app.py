@@ -5,12 +5,12 @@ This app is for early design-stage screening, not permitting conclusions.
 """
 import streamlit as st
 from building_law_checker import LAND_API_KEY
-from vworld_client import geocode, lookup_zones, lookup_district_plan
+from vworld_client import geocode, lookup_zones, lookup_district_plan, relay_configured
 from law_core_v2 import (CORE_PACK_ID, route_laws, preview_area, far_counted_area,
                          FAR_EXCLUSION_KEYS, sort_findings, findings_to_markdown,
                          findings_to_json, parking_required,
                          PARKING_RULES, PARKING_MANUAL_KEYS)
-from ordinance_daejeon import (is_daejeon, zone_limits, parking_required_daejeon, DJ_PARKING_RULES,
+from ordinance_daejeon import (DJ_ZONE_LIMITS, is_daejeon, zone_limits, parking_required_daejeon, DJ_PARKING_RULES,
                                DJ_MANUAL_KEYS, DJ_UNDEFINED_KEYS, DJ_META, DJ_SUNLIGHT_NOTE)
 
 st.set_page_config(page_title="현상설계 법규 분석 v2", page_icon="🏛️", layout="wide")
@@ -28,6 +28,8 @@ with st.form("site_form"):
         is_public = st.checkbox("공공건축물")
     with right:
         is_housing = st.checkbox("주택사업/정비사업")
+        manual_zone = st.selectbox("용도지역 직접 선택 (자동 조회가 안 될 때만, 대전 조례 기준)",
+                                   ["자동 조회 결과 사용"] + list(DJ_ZONE_LIMITS))
         district_choice = st.selectbox("지구단위계획 적용 여부(수동 확인)", ["미확인", "적용", "비적용"])
         covered = st.number_input("계획 건축면적 (㎡)", min_value=0.0, value=0.0)
         far_area = st.number_input("용적률 산정용 연면적 (㎡, 검토값)", min_value=0.0, value=0.0)
@@ -37,8 +39,8 @@ if submitted:
     district = {"미확인": None, "적용": True, "비적용": False}[district_choice]
     zones = []
     st.subheader("1. 기본 자료 확인")
-    if not LAND_API_KEY:
-        st.error("VWORLD_API_KEY 환경변수가 설정되지 않아 주소·용도지역 조회를 건너뜁니다. 모든 대지 조건은 미확인 처리됩니다.")
+    if not LAND_API_KEY and not relay_configured():
+        st.error("VWORLD_API_KEY(또는 중계 설정 VWORLD_RELAY_URL/TOKEN)가 없어 주소·용도지역 조회를 건너뜁니다. 모든 대지 조건은 미확인 처리됩니다.")
     elif address.strip():
         st.write(f"입력 주소: {address}")
         try:
@@ -72,6 +74,13 @@ if submitted:
             st.warning("외부 API 응답 확인 실패: 모든 미확정 항목은 확인 필요로 처리")
     else:
         st.info("주소가 없으므로 대지 관련 법규는 UNKNOWN으로 분류됩니다.")
+
+    if manual_zone != "자동 조회 결과 사용":
+        if zones and [z.replace(" ", "") for z in zones] != [manual_zone]:
+            st.warning(f"직접 선택한 용도지역({manual_zone})이 자동 조회 결과({', '.join(zones)})와 다릅니다. 직접 선택값을 사용합니다 — 토지이용계획확인서로 확인하세요.")
+        elif not zones:
+            st.info(f"자동 조회가 되지 않아 직접 선택한 용도지역({manual_zone})을 사용합니다 — 토지이용계획확인서로 확인하세요.")
+        zones = [manual_zone]
 
     st.subheader("2. 법규 검토 우선순위")
     findings = route_laws(

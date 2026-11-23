@@ -16,6 +16,19 @@ streamlit run app.py
 
 Streamlit 배포에서는 Secrets에 `VWORLD_API_KEY`, `VWORLD_DOMAIN`(배포 주소로 등록한 키)을 넣는다.
 
+### 해외 서버(Streamlit Cloud)에서 VWorld 조회가 막힐 때: 서울 중계
+
+Streamlit Cloud 서버에서는 VWorld 호출이 `ConnectionError`/비JSON 응답으로 실패한다(해외 IP 차단 추정, 미확정).
+그래서 Vercel 서울 리전(`icn1`) 함수 `api/vworld.js` 가 VWorld 를 대신 호출한다.
+
+- 중계(Vercel 환경변수): `VWORLD_API_KEY`, `VWORLD_DOMAIN`(키에 등록한 중계 도메인), `RELAY_TOKEN`(임의의 긴 문자열)
+- 앱(Streamlit Secrets): `VWORLD_RELAY_URL`(`https://<중계 도메인>/api/vworld`), `VWORLD_RELAY_TOKEN`(= `RELAY_TOKEN`)
+  — 설정되면 중계가 우선이고 앱에는 VWorld 키가 필요 없다.
+- 중계는 토큰 없이는 응답하지 않으며, 허용 호출은 주소 좌표·용도지역·지구단위계획구역 세 가지뿐이다.
+- 진단: `GET /api/vworld?action=diag` (토큰 필요) → 중계 실행 리전과 VWorld 응답 상태를 돌려준다.
+- 로컬 점검: `node tests/relay_check.js`
+- 조회가 안 될 때는 화면에서 '용도지역 직접 선택'으로 대전 조례 상한을 볼 수 있다.
+
 ## Architecture
 
 - `app.py`: UI (구 app_v2.py). 외부 자료 조회, 법규 우선순위, 대전 조례 기준, 규모/주차 산술 시나리오를 분리해서 보여준다.
