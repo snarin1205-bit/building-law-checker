@@ -108,6 +108,47 @@ def find_sheets(window):
     return hits
 
 
+_POINT_TYPES = ("INSERT", "TEXT", "MTEXT", "POINT", "CIRCLE", "ARC", "ELLIPSE")
+
+
+def _pos(e):
+    t = e.dxftype()
+    try:
+        if t in ("INSERT", "TEXT", "POINT"):
+            p = e.dxf.insert if t != "POINT" else e.dxf.location
+        else:
+            p = e.dxf.center if t in ("CIRCLE", "ARC") else (e.dxf.insert if t == "MTEXT" else e.dxf.center)
+        return p.x, p.y
+    except Exception:
+        return None
+
+
+def _inside(pt, w):
+    return pt is not None and w[0] <= pt[0] <= w[2] and w[1] <= pt[1] <= w[3]
+
+
+def clip_pieces(points, closed, window):
+    """선(또는 닫힌 외곽)을 창으로 잘라 조각 목록([(x,y),...])을 돌려준다. 창 안에 완전히 들어오면 None(원본 유지)."""
+    from shapely.geometry import LineString, box
+    pts = [(p[0], p[1]) for p in points]
+    if len(pts) < 2:
+        return None
+    if all(window[0] <= x <= window[2] and window[1] <= y <= window[3] for x, y in pts):
+        return None
+    ring = pts + [pts[0]] if closed and pts[0] != pts[-1] else pts
+    g = LineString(ring).intersection(box(*window))
+    if g.is_empty:
+        return []
+    geoms = list(getattr(g, "geoms", [g]))
+    out = []
+    for q in geoms:
+        if q.geom_type == "LineString" and len(q.coords) >= 2:
+            out.append([(c[0], c[1]) for c in q.coords])
+        elif q.geom_type == "MultiLineString":
+            out += [[(c[0], c[1]) for c in l.coords] for l in q.geoms]
+    return out
+
+
 def clip_to_dxf(sheet_names, window, origin_xy=(0.0, 0.0), note=None):
     """저장 도엽에서 창과 겹치는 도형을 새 DXF 로 복사하고 origin_xy 를 빼서 이동. 반환 (bytes, 복사한 도형 수)."""
     import ezdxf
@@ -122,13 +163,44 @@ def clip_to_dxf(sheet_names, window, origin_xy=(0.0, 0.0), note=None):
         src = _read_dxf(cache_dir() / load_index()["sheets"][name]["file"])
         picked = []
         for e in src.modelspace():
-            try:
+            t = e.dxftype()
+            if t in _POINT_TYPES:               # 기호·문자는 기준점이 창 안에 있을 때만
+                if _inside(_pos(e), window):
+                    picked.append(e)
+                continue
+            if t in ("LWPOLYLINE", "LINE", "POLYLINE"):   # 선은 창 경계에서 잘라 필요한 부분만
+                try:
+                    if t == "LWPOLYLINE":
+                        pts, closed = [(p[0], p[1]) for p in e.get_points("xy")], bool(e.closed)
+                    elif t == "LINE":
+                        pts, closed = [(e.dxf.start.x, e.dxf.start.y), (e.dxf.end.x, e.dxf.end.y)], False
+                    else:
+                        pts, closed = [(v.dxf.location.x, v.dxf.location.y) for v in e.vertices], bool(e.is_closed)
+                    pieces = clip_pieces(pts, closed, window)
+                except Exception:
+                    continue
+                if pieces is None:
+                    picked.append(e)            # 창 안에 완전히 들어옴 → 원본 그대로
+                else:
+                    lay = e.dxf.layer
+                    if lay not in tgt.layers:
+                        try:
+                            tgt.layers.add(lay, color=src.layers.get(lay).dxf.color)
+                        except Exception:
+                            tgt.layers.add(lay)
+                    attrs = {"layer": lay}
+                    for k in ("color", "lineweight"):
+                        if e.dxf.hasattr(k):
+                            attrs[k] = e.dxf.get(k)
+                    for pc in pieces:
+                        msp_t.add_lwpolyline(pc, format="xy", dxfattribs=attrs)
+                        n += 1
+                continue
+            try:                                # 그 밖의 도형은 경계 상자가 창과 겹칠 때 복사
                 ex = eb.extents([e], fast=True)
             except Exception:
                 continue
-            if not ex.has_data:
-                continue
-            if ex.extmin.x <= window[2] and window[0] <= ex.extmax.x and ex.extmin.y <= window[3] and window[1] <= ex.extmax.y:
+            if ex.has_data and ex.extmin.x <= window[2] and window[0] <= ex.extmax.x and ex.extmin.y <= window[3] and window[1] <= ex.extmax.y:
                 picked.append(e)
         if picked:
             imp = Importer(src, tgt)

@@ -18,13 +18,22 @@ sys.path.insert(0, str(ROOT / "tools"))
 import build_ordinance_data as bo  # noqa: E402
 import build_parking_data as bp  # noqa: E402
 from ordinance_parking_parse import completeness, find_follow_decree, parse_parking_annex  # noqa: E402
-from ordinance_parse import CANON_ZONES, article_block, parse_ordinance, zone_table  # noqa: E402
+from ordinance_parse import CANON_ZONES, article_block, parse_list, parse_ordinance, zone_table  # noqa: E402
 
 TODAY = "2026-11-23"
 CACHE = pathlib.Path(os.environ.get("LOCAL_ORD_CACHE", str(ROOT / ".cache_local_ord")))
 CACHE.mkdir(parents=True, exist_ok=True)
-SIDO = r"(경기도|강원특별자치도|강원도|충청북도|충청남도|전북특별자치도|전라북도|전라남도|경상북도|경상남도|제주특별자치도)"
-ORG = re.compile(rf"^{SIDO}( \S+(시|군))?$")
+SIDO = r"(경기도|강원특별자치도|강원도|충청북도|충청남도|전북특별자치도|전라북도|전라남도|전남광주통합특별시|경상북도|경상남도|제주특별자치도)"
+# 도 소재 시·군 + 광역시 소속 군(기장·달성·군위·울주·강화·옹진은 자체 조례가 따로 있다)
+ORG = re.compile(rf"^{SIDO}( \S+(시|군))?$|^(부산광역시|대구광역시|인천광역시|울산광역시) \S+군$")
+# 시 조례는 '도시계획 조례', 군 조례는 '군계획 조례'(도시ㆍ군계획 포함)로 이름이 다르다
+# 이름 변형: 'OO시 도시계획 조례', 'OO군 군계획 조례', 'OO군계획 조례', 'OO군 계획 조례', 'OO군 관리계획 조례', 'OO군 계획조례', 끝의 '[제명개정 …]' 꼬리
+URBAN_NAME = re.compile(r"^(?:[가-힣]+\s)?[가-힣]+[시군]\s?(?:도시[ㆍ·]군|도시|군|관리)?\s?계획\s?조례$")
+URBAN_QUERIES = ("도시계획 조례", "군계획 조례", "도시ㆍ군계획 조례", "도시계획조례", "계획 조례", "관리계획 조례", "계획조례")
+
+
+def urban_name_ok(name):
+    return bool(URBAN_NAME.match(re.sub(r"\s*\[[^\]]*\]\s*$", "", name).strip()))
 PARK_BAD = ("기금", "특별회계", "요금", "무료", "개방", "지원", "공영", "청사", "시장", "환승", "위원회", "운영", "전용", "공유",
             "태양광", "재생", "관리공단", "시설관리", "민간", "주민", "거주자", "임시", "체납", "교통사업", "규칙", "수탁", "노상", "견인",
             "이륜", "자전거", "화물", "버스", "택시", "캠핑", "공원", "마을", "문화재", "관광지", "장애인")
@@ -96,9 +105,15 @@ def annex_hwp_cached(xml, hint):
 
 
 def build_urban(report):
-    rows = [r for r in enumerate_ordinances("도시계획 조례")
-            if ORG.match(r["org"]) and " " in r["org"] and re.search(r"도시계획\s?조례$", r["name"]) and "시행규칙" not in r["name"]
-            and "위원회" not in r["name"]]
+    allrows, seen_mst = [], set()
+    for q in URBAN_QUERIES:   # 검색 결과가 한 번에 다 나오지 않으므로 여러 검색어를 합친다
+        for r in enumerate_ordinances(q):
+            if r["mst"] not in seen_mst:
+                seen_mst.add(r["mst"])
+                allrows.append(r)
+    rows = [r for r in allrows
+            if ORG.match(r["org"]) and " " in r["org"] and urban_name_ok(r["name"]) and "시행규칙" not in r["name"]
+            and "위원회" not in r["name"] and "공공기여" not in r["name"] and "변경" not in r["name"]]
     best = {}
     for r in rows:  # 기관당 1건(시행일 최신)
         if r["org"] not in best or r["eff"] > best[r["org"]]["eff"]:
@@ -118,13 +133,24 @@ def build_urban(report):
                     c2, f2, n1, n2, m2 = parse_ordinance(text, annex_text)
                     if m2 == "annex-hwp" or (len(c2) >= len(cov) and len(f2) >= len(far)):
                         cov, far, cn, fn, method = c2, f2, n1, n2, m2
+            if method != "article" and (len(cov) < 15 or len(far) < 15):
+                # 건폐율 별표와 용적률 별표가 따로 있고 조문과 같은 '용도지역 : 비율' 목록인 조례
+                ct, ctext = annex_hwp_cached(xml, "건폐율")
+                ft, ftext = annex_hwp_cached(xml, "용적률")
+                if ctext and ftext:
+                    c3, cn3 = parse_list(ctext)
+                    f3, fn3 = parse_list(ftext)
+                    if len(c3) >= 15 and len(f3) >= 15:
+                        cov, far, cn, fn, method = c3, f3, cn3, fn3, "annex-list"
+                        annex_title = f"{ct} / {ft}"
+                        annex_text = f"# 별표 '{ct}'\n{ctext}\n\n# 별표 '{ft}'\n{ftext}"
             if len(cov) < 8 or len(far) < 8:
                 report["urban_failed"].append({"org": org, "name": r["name"], "cov": len(cov), "far": len(far), "method": method})
                 continue
             base = f"{slug(org)}_도시계획조례_{r['eff']}"
             hdr = (f"# 출처: 법제처 국가법령정보센터 자치법규, 조회일 {TODAY}\n# 자치법규: {r['name']} ({org}) 공포번호 {r['pn']}, 시행일 {eff_iso(r['eff'])}, 자치법규일련번호 {r['mst']}\n"
                    "# 용도지역별 건폐율·용적률 조문(또는 별표) 발췌. API 응답에서 태그만 제거한 텍스트. 수정 금지.\n\n")
-            if method == "annex-hwp":
+            if method in ("annex-hwp", "annex-list"):
                 body = f"# 별표 '{annex_title}' (hwp 추출 텍스트)\n" + annex_text
                 (snaps / f"{base}.txt").write_text(hdr + body + "\n", encoding="utf-8")
                 annex_rel = None

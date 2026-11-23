@@ -4,7 +4,9 @@ import pathlib
 import unittest
 
 from ordinance_parking_parse import completeness, find_follow_decree, parse_parking_annex
-from ordinance_parse import CANON_ZONES, parse_article, parse_hwp_table, zone_table
+import re
+
+from ordinance_parse import CANON_ZONES, parse_article, parse_hwp_table, parse_list, zone_table
 from ordinance_regions import region_of
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
@@ -26,7 +28,7 @@ class LocalZoneLimits(unittest.TestCase):
         for key in self.DATA:
             sido, _, sg = key.partition(" ")
             self.assertTrue(sg.endswith(("시", "군")), key)
-            self.assertTrue(sido.endswith(("도", "특별자치도")), key)
+            self.assertTrue(sido.endswith(("도", "특별자치도", "특별시", "광역시")), key)   # 전남광주통합특별시, 광역시 소속 군 포함
 
     def test_json_matches_snapshot_reparse(self):
         for key, r in self.DATA.items():
@@ -36,6 +38,11 @@ class LocalZoneLimits(unittest.TestCase):
             if o["method"] == "annex-hwp":
                 cov, far = parse_hwp_table(body)
                 self.assertEqual(r["zones"], zone_table(cov, far, {}, {}), key)
+            elif o["method"] == "annex-list":   # 건폐율 별표 + 용적률 별표가 따로 있는 조례: '# 별표 ...' 구분선으로 나뉜 두 목록
+                parts = re.split(r"^# 별표 '[^\n]*\n", raw, flags=re.M)
+                self.assertGreaterEqual(len(parts), 3, key)
+                (cov, cn), (far, fn) = parse_list(parts[-2]), parse_list(parts[-1])   # 마지막 두 구간 = 건폐율 별표, 용적률 별표
+                self.assertEqual(r["zones"], zone_table(cov, far, cn, fn), key)
             else:
                 (cov, cn), (far, fn) = parse_article(body, "건폐율"), parse_article(body, "용적률")
                 self.assertEqual(r["zones"], zone_table(cov, far, cn, fn), key)

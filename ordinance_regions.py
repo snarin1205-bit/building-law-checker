@@ -21,6 +21,7 @@ _PREFIXES = (
     ("세종특별자치시", "세종특별자치시"), ("세종", "세종특별자치시"),
 )
 # 광역시 안의 군: 군 자체 도시계획 조례가 따로 있을 수 있다(미확인)
+MERGED_JEONNAM = "전남광주통합특별시"   # 2026년 법제처 자치법규의 전남 시·군 기관명 접두
 COUNTIES = ("기장군", "달성군", "군위군", "울주군", "강화군", "옹진군")
 
 CAVEATS = (
@@ -48,7 +49,7 @@ SIDO_ALIAS = {
     "경기": "경기도", "경기도": "경기도", "강원": "강원특별자치도", "강원도": "강원특별자치도", "강원특별자치도": "강원특별자치도",
     "충북": "충청북도", "충청북도": "충청북도", "충남": "충청남도", "충청남도": "충청남도",
     "전북": "전북특별자치도", "전라북도": "전북특별자치도", "전북특별자치도": "전북특별자치도",
-    "전남": "전라남도", "전라남도": "전라남도", "경북": "경상북도", "경상북도": "경상북도",
+    "전남": "전라남도", "전라남도": "전라남도", "전남광주통합특별시": "전라남도", "전남광주": "전라남도", "경북": "경상북도", "경상북도": "경상북도",
     "경남": "경상남도", "경상남도": "경상남도", "제주": "제주특별자치도", "제주도": "제주특별자치도", "제주특별자치도": "제주특별자치도",
 }
 
@@ -56,15 +57,20 @@ SIDO_ALIAS = {
 def region_of(address, regions=None):
     """주소 → 지역 키. 광역시·특별시 8곳은 prefix, 도 소재 시·군은 '경기도 성남시' 형태. 데이터가 없는 지역은 None."""
     a = (address or "").strip()
+    known = regions if regions is not None else load()["regions"]
     for prefix, key in _PREFIXES:
         if a.startswith(prefix):
+            c = county_in(a)   # 광역시 소속 군은 군 자체 조례가 연결돼 있으면 그것을 쓴다
+            if c and f"{key} {c}" in known:
+                return f"{key} {c}"
             return key
     toks = a.split()
     if len(toks) >= 2 and toks[0] in SIDO_ALIAS and toks[1].endswith(("시", "군")):
-        key = f"{SIDO_ALIAS[toks[0]]} {toks[1]}"
-        known = regions if regions is not None else load()["regions"]
-        if key in known:
-            return key
+        sido = SIDO_ALIAS[toks[0]]
+        for cand in dict.fromkeys([sido] + ([MERGED_JEONNAM] if sido == "전라남도" else [])):
+            key = f"{cand} {toks[1]}"
+            if key in known:
+                return key
     return None
 
 

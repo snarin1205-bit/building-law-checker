@@ -107,5 +107,36 @@ class NgiiTests(unittest.TestCase):
         self.assertEqual(nd.export_ngii(127.2370, 36.2865)["status"], "NO_SHEET")
 
 
+class ClipTests(unittest.TestCase):
+    W = (0, 0, 100, 100)
+
+    def test_pieces(self):
+        self.assertIsNone(nd.clip_pieces([(10, 10), (50, 50)], False, self.W))           # 완전히 안 → 원본
+        self.assertEqual(nd.clip_pieces([(200, 200), (300, 300)], False, self.W), [])     # 완전히 밖
+        p = nd.clip_pieces([(-100, 50), (300, 50)], False, self.W)                        # 긴 선 → 창 경계에서 잘림
+        self.assertEqual(len(p), 1)
+        xs = [q[0] for q in p[0]]
+        self.assertEqual((min(xs), max(xs)), (0, 100))
+        ring = nd.clip_pieces([(50, 50), (150, 50), (150, 150), (50, 150)], True, self.W)  # 걸친 닫힌 외곽 → 열린 조각
+        self.assertTrue(ring and all(max(q[0] for q in piece) <= 100 and max(q[1] for q in piece) <= 100 for piece in ring))
+
+    def test_long_lines_do_not_extend_output(self):
+        tmp = tempfile.TemporaryDirectory(); os.environ["NGII_CACHE"] = tmp.name
+        try:
+            nd.import_file("a.dxf", make_dxf([((220000, 409848), (224000, 409848)), ((221343, 408500), (221343, 412000)),
+                                               ((221300, 409800), (221400, 409800))], texts=[((221343, 409848), "안"), ((223500, 410500), "밖")]))
+            window = (221143, 409648, 221543, 410048)
+            data, n = nd.clip_to_dxf(["a.dxf"], window, (221343.0, 409848.0))
+            doc = ezdxf.read(io.StringIO(data.decode("utf-8")))
+            from ezdxf import bbox as eb
+            ex = eb.extents(doc.modelspace())
+            self.assertLessEqual(ex.extmax.x, 200.5); self.assertGreaterEqual(ex.extmin.x, -200.5)   # 창 반폭 200m
+            self.assertLessEqual(ex.extmax.y, 200.5); self.assertGreaterEqual(ex.extmin.y, -200.5)
+            texts = [e.dxf.text for e in doc.modelspace() if e.dxftype() == "TEXT"]
+            self.assertEqual(texts, ["안"])
+        finally:
+            os.environ.pop("NGII_CACHE", None); tmp.cleanup()
+
+
 if __name__ == "__main__":
     unittest.main()

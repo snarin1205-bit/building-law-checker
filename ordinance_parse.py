@@ -51,6 +51,8 @@ def article_block(txt, kind):
     pat = re.compile(r"^제\d+조(?:의\d+)?\((?:[^)]*?)용도지역\s*(?:안|내)?\s*에서의\s*" + kind + r"[^)]*\)", re.M)
     m = pat.search(txt)
     if not m:
+        m = _relaxed_heading(txt, kind)   # 제목 형식이 다른 조례(괄호 앞 공백, '용도지역ㆍ지구 등에서의' 등)
+    if not m:
         return None
     blk = txt[m.end():m.end() + 6000]
     cut = len(blk)
@@ -58,6 +60,45 @@ def article_block(txt, kind):
         if stop:
             cut = min(cut, stop.start())
     return txt[m.start():m.end()] + blk[:cut]
+
+
+_BAD_TITLE = ("완화", "강화", "특례", "성장관리", "지구단위", "경제자유", "기존", "공장", "농지", "방화", "경관", "그 밖")
+
+
+def _relaxed_heading(txt, kind):
+    """엄격한 패턴이 실패했을 때: 한 줄짜리 조문 제목에 kind 와 '지역'(용도지역·용도구역ㆍ지역ㆍ지구 등)이 있고 완화·특례 조문이 아닌 것 중
+    본문에 '용도지역: 비율' 행이 가장 많이 읽히는 조문. 행이 하나도 없으면 None."""
+    best, best_n = None, 0
+    for m in re.finditer(r"^제\d+조(?:의\d+)?\s*\(([^)\n]*)\)", txt, re.M):
+        title = m.group(1)
+        if kind not in title or "지역" not in title or any(b in title for b in _BAD_TITLE):
+            continue
+        blk = txt[m.end():m.end() + 6000]
+        cut = len(blk)
+        for stop in (re.search(r"^②", blk, re.M), re.search(r"^제\d+조", blk, re.M)):
+            if stop:
+                cut = min(cut, stop.start())
+        n = sum(1 for name, rest in _ROW.findall(blk[:cut]) if nospace(name) in _CANON and parse_pct(rest)[0] is not None)
+        if n > best_n:
+            best, best_n = m, n
+    return best
+
+
+def parse_list(text):
+    """별표 본문(hwp 추출 텍스트 등)의 'N. 용도지역 : 비율' 목록 → ({용도지역: %}, {용도지역: 단서}). 표준 21개 용도지역만, 첫 값 사용."""
+    vals, notes = {}, {}
+    for name, rest in _ROW.findall(text or ""):
+        n = nospace(name)
+        if n not in _CANON or n in vals:
+            continue
+        v, tail = parse_pct(rest)
+        if v is None:
+            continue
+        vals[n] = v
+        note = _clean_note(tail)
+        if note:
+            notes[n] = note
+    return vals, notes
 
 
 def _clean_note(s):
