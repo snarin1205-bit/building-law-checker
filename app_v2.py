@@ -1,0 +1,91 @@
+"""Building Law Checker renewal — Streamlit entry point.
+
+Run: streamlit run app_v2.py
+This app is for early design-stage screening, not permitting conclusions.
+"""
+import streamlit as st
+from building_law_checker import get_coordinates, get_land_use, get_district_plan, get_region
+from law_core_v2 import CORE_PACK_ID, route_laws, preview_area
+
+st.set_page_config(page_title="현상설계 법규 분석 v2", page_icon="🏛️", layout="wide")
+st.title("현상설계 법규 분석 · Core v2")
+st.caption("기존 VWorld 주소 조회 + OpenCrab Core v2 판단 정책 기반 사전 검토")
+st.warning("법률 판단 보조 도구입니다. 실무 제출·허가 전 공식 원문, 최신 조례, 지구단위계획 및 전문가 검토가 필수입니다.")
+st.caption(f"판단 정책: OpenCrab Core v2 ({CORE_PACK_ID}) · 로컬 정책 어댑터 / 실시간 OpenCrab 연결 아님")
+
+with st.form("site_form"):
+    left, right = st.columns(2)
+    with left:
+        address = st.text_input("주소/지번", placeholder="예: 대전광역시 유성구 ...")
+        building_use = st.text_input("건축물 주용도", placeholder="예: 공공업무시설, 도서관")
+        site_area = st.number_input("대지면적 (㎡)", min_value=0.0, value=0.0)
+        is_public = st.checkbox("공공건축물")
+    with right:
+        is_housing = st.checkbox("주택사업/정비사업")
+        district_choice = st.selectbox("지구단위계획 적용 여부(수동 확인)", ["미확인", "적용", "비적용"])
+        covered = st.number_input("계획 건축면적 (㎡)", min_value=0.0, value=0.0)
+        far_area = st.number_input("용적률 산정용 연면적 (㎡, 검토값)", min_value=0.0, value=0.0)
+    submitted = st.form_submit_button("법규 리스크 분석", type="primary")
+
+if submitted:
+    district = {"미확인": None, "적용": True, "비적용": False}[district_choice]
+    st.subheader("1. 기본 자료 확인")
+    if address.strip():
+        st.write(f"입력 주소: {address}")
+        try:
+            x, y = get_coordinates(address.strip())
+            if x is None or y is None:
+                st.warning("주소 좌표 조회 실패: 용도지역/지구단위계획은 확인 필요")
+            else:
+                zones = get_land_use(x, y)
+                plans = get_district_plan(x, y)
+                st.write("VWorld 용도지역 조회:", ", ".join(zones) if zones else "미확인 (조회 실패 또는 데이터 없음)")
+                st.write("VWorld 관련 계획 조회:", ", ".join(plans) if plans else "미확인 (없음으로 단정하지 않음)")
+                if district is None and plans:
+                    district = True
+        except Exception:
+            st.warning("외부 API 응답 확인 실패: 모든 미확정 항목은 확인 필요로 처리")
+    else:
+        st.info("주소가 없으므로 대지 관련 법규는 UNKNOWN으로 분류됩니다.")
+
+    st.subheader("2. 법규 검토 우선순위")
+    findings = route_laws(
+        building_use=building_use, site_address=address,
+        site_area=site_area or None, is_public=is_public,
+        is_housing_project=is_housing, has_district_plan=district,
+    )
+    priority_order = {"REQUIRED": 0, "CONDITIONAL": 1, "UNKNOWN": 2, "LOW_PRIORITY": 3}
+    for f in sorted(findings, key=lambda x: priority_order[x.priority]):
+        with st.expander(f"[{f.priority}] {f.law_group}", expanded=f.priority == "REQUIRED"):
+            st.write("조건:", f.condition)
+            st.write("설계 영향:", f.design_impact)
+            st.write("대응 전략:", f.action)
+            st.caption(f"근거 상태: {f.evidence_status}")
+
+    st.subheader("3. 규모 시나리오 계산")
+    st.info("법규 적용 비율은 자동 확정하지 않습니다. 아래 수치를 직접 확인해서 입력하면 산술 시나리오만 계산합니다.")
+    st.session_state["site_snapshot"] = {
+        "site_area": site_area, "covered": covered, "far_area": far_area,
+    }
+
+if "site_snapshot" in st.session_state:
+    data = st.session_state["site_snapshot"]
+    c1, c2 = st.columns(2)
+    with c1:
+        coverage = st.number_input("검토용 건폐율 (%)", min_value=0.0, max_value=100.0, value=0.0, step=1.0)
+    with c2:
+        far_pct = st.number_input("검토용 용적률 (%)", min_value=0.0, value=0.0, step=10.0)
+    confirmed = st.checkbox("입력한 비율의 적용 조례·시행일·예외 여부를 별도로 확인했습니다")
+    if coverage <= 0 or far_pct <= 0:
+        st.warning("건폐율과 용적률을 입력해야 계산됩니다. 0은 미입력으로 처리합니다.")
+    else:
+        preview = preview_area(
+            data["site_area"] or None,
+            data["covered"] or None,
+            data["far_area"] or None,
+            coverage, far_pct, verified_source=confirmed,
+        )
+        st.json(preview)
+        st.warning("WITHIN_INPUT_LIMIT는 입력된 비율에 대한 산술 판정일 뿐, 법적 적합 판정이 아닙니다.")
+st.divider()
+st.caption("현재 제한: 공식 법령 실시간 동기화·지자체 조례 확인·정북일조 3D 검토·정확한 주차/피난 산정 미구현. 기존 app.py는 레거시로 보존.")
