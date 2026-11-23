@@ -4,6 +4,7 @@ import pathlib
 import tempfile
 import unittest
 import zipfile
+from collections import Counter
 
 import ezdxf
 
@@ -136,6 +137,52 @@ class ClipTests(unittest.TestCase):
             self.assertEqual(texts, ["안"])
         finally:
             os.environ.pop("NGII_CACHE", None); tmp.cleanup()
+
+
+class SymbolFilterTests(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory(); os.environ["NGII_CACHE"] = self.tmp.name
+        doc = ezdxf.new("R2010")
+        doc.layers.add("D0015212", color=3); doc.layers.add("B0010000", color=5); doc.layers.add("H0049140", color=7)
+        blk = doc.blocks.new("D0015212"); blk.add_line((0, 0), (1, 1)); blk.add_line((1, 0), (0, 1))
+        msp = doc.modelspace()
+        msp.add_line((221300, 409800), (221400, 409800), dxfattribs={"layer": "B0010000"})      # 선 — 유지
+        msp.add_blockref("D0015212", (221350, 409820), dxfattribs={"layer": "D0015212"})         # 기호(논 표시 등) — 제외
+        msp.add_blockref("D0015212", (221360, 409830), dxfattribs={"layer": "D0015212"})
+        msp.add_point((221370, 409840), dxfattribs={"layer": "D0015212"})                         # 점 기호 — 제외
+        msp.add_text("엄사초등학교", dxfattribs={"layer": "H0049140", "height": 2}).set_placement((221343, 409848))
+        s = io.StringIO(); doc.write(s)
+        nd.import_file("s.dxf", s.getvalue().encode("utf-8"))
+        self.window = (221143, 409648, 221543, 410048)
+
+    def tearDown(self):
+        os.environ.pop("NGII_CACHE", None); self.tmp.cleanup()
+
+    def kinds(self, data):
+        return Counter(e.dxftype() for e in ezdxf.read(io.StringIO(data.decode("utf-8"))).modelspace())
+
+    def test_default_removes_symbols_keeps_lines_and_text(self):
+        st = {}
+        data, n = nd.clip_to_dxf(["s.dxf"], self.window, (0.0, 0.0), None, stats=st)
+        k = self.kinds(data)
+        self.assertEqual((k["INSERT"], k["POINT"], k["LINE"] + k["LWPOLYLINE"], k["TEXT"]), (0, 0, 1, 1))
+        self.assertEqual(st, {"symbols_skipped": 3, "text_skipped": 0})
+
+    def test_options(self):
+        k = self.kinds(nd.clip_to_dxf(["s.dxf"], self.window, include_symbols=True)[0])
+        self.assertEqual((k["INSERT"], k["POINT"]), (2, 1))
+        st = {}
+        k = self.kinds(nd.clip_to_dxf(["s.dxf"], self.window, include_text=False, stats=st)[0])
+        self.assertEqual(k["TEXT"], 0)
+        self.assertEqual(st["text_skipped"], 1)
+
+    def test_export_passes_flags_and_reports_stats(self):
+        r = nd.export_ngii(127.2370, 36.2865, margin_m=300)
+        self.assertEqual(r["status"], "OK")
+        self.assertEqual(r["stats"]["symbols_skipped"], 3)
+        self.assertEqual(self.kinds(r["dxf"])["INSERT"], 0)
+        r2 = nd.export_ngii(127.2370, 36.2865, margin_m=300, include_symbols=True)
+        self.assertEqual(self.kinds(r2["dxf"])["INSERT"], 2)
 
 
 if __name__ == "__main__":
