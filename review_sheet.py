@@ -21,6 +21,17 @@ ROOT = pathlib.Path(__file__).resolve().parent
 _LAND = None
 
 
+_GB = None
+
+
+def _greenbelt():
+    global _GB
+    if _GB is None:
+        f = ROOT / "data" / "greenbelt.json"
+        _GB = json.loads(f.read_text(encoding="utf-8")) if f.exists() else {}
+    return _GB
+
+
 def _landscape():
     global _LAND
     if _LAND is None:
@@ -122,6 +133,7 @@ class ReviewInput:
     parking_variant: int = 0
     planned_building_area: Optional[float] = None  # 계획 건축면적(설계안)
     planned_parking: Optional[int] = None          # 계획 주차대수(설계안)
+    in_greenbelt: bool = False                    # 개발제한구역 안(VWorld 조회 또는 직접 선택)
     guideline_parking: Optional[int] = None        # 공모지침이 제시한 법정 주차대수(있으면 지침값을 함께 비교)
 
 
@@ -201,14 +213,18 @@ def build_review(inp: ReviewInput):
     spec = USES.get(inp.use) or USES["그 밖의 시설(방송통신·발전·자동차 관련 등)"]
     region = region_of(inp.address)
     zones = [z for z in (inp.zones or ()) if z]
+    gb = bool(inp.in_greenbelt) or any("개발제한구역" in z for z in zones)
+    zones = [z for z in zones if "개발제한구역" not in z]   # 개발제한구역은 용도구역 — 건폐율·용적률은 별도 기준
+    GB = _greenbelt()
+    gb_ok = bool(gb and GB.get("annex2", {}).get("status") == "ok")
     zinfo = classify_zones(zones)
     cats = zinfo["categories"]
     zl = zone_limits_for(inp.address, zones)
 
     # --- 1. 대지 개요 -----------------------------------------------------
     rows.append(Row("대지 개요", "용도지역", "국토계획법 / 토지이용계획", "—",
-                    ", ".join(zones) if zones else "미확인",
-                    "건폐율·용적률·일조·공개공지 적용 여부의 기준", "조건부" if zones else "미확인",
+                    (", ".join(zones) if zones else "미확인") + (" + 개발제한구역(용도구역)" if gb else ""),
+                    "건폐율·용적률·일조·공개공지 적용 여부의 기준", "조건부" if (zones or gb) else "미확인",
                     ["VWorld 조회 또는 직접 선택한 값 — 토지이용계획확인서로 확인",
                      "필지가 둘 이상의 용도지역에 걸치면 면적·위치별로 따로 검토"] if zones else ["용도지역이 없으면 아래 대지 기준 항목이 미확인으로 남음"]))
     dp = {True: "지구단위계획구역 — 결정도서·시행지침 우선 확인(건폐율·용적률·높이·건축선·용도 제한)", False: "해당 없음으로 입력됨(법적 비적용 확정은 아님)",
@@ -219,7 +235,63 @@ def build_review(inp: ReviewInput):
     # --- 2. 규모: 건폐율·용적률 -------------------------------------------
     cov = far = None
     law_name = f"{region} 도시계획 조례" if region else "지자체 도시계획 조례"
-    if zl["status"] == "NO_REGION":
+    if gb_ok:
+        A = GB["annex2"]; g_ = A["general"]; dec_ = GB["decree"]
+        cov, far = g_["coverage_pct"], g_["far_pct"]
+        basis_gb = f"개발제한구역법 제12조, 시행령 제22조·[별표 2] 제2호가목 (시행 {dec_['effective_iso']})"
+        hs = A.get("housing") or []
+        h_note = ("주택·근린생활시설은 별도 기준(별표 2 제2호나목): " + " 또는 ".join(
+            f"건폐율 {h['coverage_pct']}% 이하·{h['max_floors']}층 이하·용적률 {h['far_pct']}% 이하" + (f"·연면적 {h['max_floor_area_m2']}㎡(지정당시거주자 {h['max_floor_area_designated_resident_m2']}㎡) 이하" if "max_floor_area_m2" in h else "")
+            for h in hs)) if hs else None
+        gb_notes = ["개발제한구역에서는 법 제12조제1항 단서·시행령 별표 1에 열거된 건축물만 허가를 받아 건축할 수 있음 — 계획 시설이 허용 시설인지, 관리계획(법 제11조)에 적합한지는 허가청 확인(이 프로그램에 미연결)",
+                    "국토계획법상 용도지역(자연녹지 등) 조례 상한과의 관계는 허가청 확인 — 여기서는 개발제한구역법 기준을 표시"]
+        if h_note:
+            gb_notes.insert(0, h_note)
+        zref = zone_limits_for(inp.address, zones) if zones else None
+        if zref and len(zref.get("matches", [])) == 1 and zref["matches"][0]["coverage_max_pct"] is not None:
+            m0 = zref["matches"][0]
+            gb_notes.append(f"참고: 같은 필지의 용도지역({m0['zone']}) 조례 상한은 건폐율 {m0['coverage_max_pct']}% / 용적률 {m0['far_max_pct']}%")
+        ca = fa = "대지면적 입력 필요"
+        if inp.site_area:
+            ca = f"대지 × {cov}% = {_n(inp.site_area * cov / 100)}㎡"
+            fa = f"대지 × {far}% = {_n(inp.site_area * far / 100)}㎡"
+            vals["max_building_area"] = round(inp.site_area * cov / 100, 2)
+            vals["max_floor_area"] = round(inp.site_area * far / 100, 2)
+            if inp.planned_building_area:
+                ca += f" | 계획 건축면적 {_n(inp.planned_building_area)}㎡ (건폐율 {inp.planned_building_area / inp.site_area * 100:.2f}%) → " + ("적합" if inp.planned_building_area <= inp.site_area * cov / 100 + 1e-6 else "초과(부적합)")
+            if inp.total_floor_area:
+                fa += f" | 계획 연면적 {_n(inp.total_floor_area)}㎡ (용적률 {inp.total_floor_area / inp.site_area * 100:.2f}%) → " + ("적합" if inp.total_floor_area <= inp.site_area * far / 100 + 1e-6 else "초과(제외 면적 확인)")
+        gsrc = A["snapshot"]
+        rows.append(Row("규모", "건폐율 → 최대 건축면적", basis_gb, f"개발제한구역 건폐율 {cov}% 이하", ca, "건축면적 상한 → 배치 가능한 매스 크기", "조건부" if inp.site_area else "미확인", gb_notes, gsrc))
+        rows.append(Row("규모", "용적률 → 최대 연면적", basis_gb, f"개발제한구역 용적률 {far}% 이하", fa, "연면적 상한 → 층수·규모 계획", "조건부" if inp.site_area else "미확인", gb_notes[-2:], gsrc))
+        rows.append(Row("규모", "높이(층수)", basis_gb, f"높이 {g_['max_floors']}층 이하", f"{g_['max_floors']}층 이하 (계획 층수는 입력 대상이 아님)", "층수 상한 → 매스 높이 계획", "조건부", (["주택·근린생활시설은 " + str(hs[0]['max_floors']) + "층 이하"] if hs else []), gsrc))
+        ms = A.get("min_site_area_m2")
+        if ms:
+            if inp.site_area is not None and inp.site_area < ms:
+                ap, st_ = f"대지면적 {_n(inp.site_area)}㎡ < {ms}㎡ → 건축 불허(기존 건축물 개축·재축 제외)", "확정"
+            elif inp.site_area:
+                ap, st_ = f"대지면적 {_n(inp.site_area)}㎡ ≥ {ms}㎡ → 해당 없음", "확정"
+            else:
+                ap, st_ = "대지면적 입력 필요", "미확인"
+            rows.append(Row("규모", "최소 대지면적", f"개발제한구역법 시행령 [별표 2] 제1호사목", f"건축물을 건축하기 위한 대지면적 {ms}㎡ 미만이면 건축 불허", ap, "소규모 필지 건축 불가", st_, [], gsrc))
+        a20 = GB.get("art20") or {}
+        if a20.get("floor_area_m2"):
+            thr = a20["floor_area_m2"]
+            _fa2 = inp.total_floor_area or ((inp.site_area * far / 100) if inp.site_area else None)
+            lab = "" if inp.total_floor_area else "(연면적 미입력 — 용적률 상한 가정)"
+            if _fa2:
+                ap = (f"연면적 {_n(_fa2)}㎡{lab} ≥ {thr:,}㎡ → 주민 의견청취 대상: 시·군·구·읍·면·동 게시판에 {a20['notice_days']}일 이상 게시·열람" if _fa2 >= thr
+                      else f"연면적 {_n(_fa2)}㎡{lab} < {thr:,}㎡ → 해당 없음")
+                st_ = "조건부"
+            else:
+                ap, st_ = "연면적 입력 필요", "미확인"
+            rows.append(Row("인허가", "주민 의견청취", f"개발제한구역법 제12조제6항, 시행령 제20조", f"연면적 {thr:,}㎡ 이상 건축 시 주민 의견청취(게시 {a20['notice_days']}일 이상)", ap,
+                            "허가 절차 기간·일정에 반영", st_, ["법 제11조제1항제5호 본문에 따른 건축은 제외"], a20["snapshot"]))
+    elif gb:
+        rows.append(Row("규모", "건폐율·용적률(개발제한구역)", "개발제한구역법 시행령 [별표 2]", "원문 사본을 읽지 못함", "자동 계산 불가", "최대 건축면적·연면적의 기준", "미확인", ["data/greenbelt.json 이 없거나 파싱 실패 — tools/build_greenbelt_data.py 재실행"]))
+    if gb:
+        pass
+    elif zl["status"] == "NO_REGION":
         for it in ("건폐율", "용적률"):
             rows.append(Row("규모", it, "국토계획법 제77·78조, 지자체 도시계획 조례", "조례로 정함", "이 지역 조례 미연결", "최대 건축면적·연면적의 기준", "미연결",
                             ["해당 지자체 도시계획 조례 원문으로 직접 확인"]))

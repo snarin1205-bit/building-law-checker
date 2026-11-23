@@ -1,0 +1,50 @@
+{
+  "generated": "2026-11-23",
+  "note": "개발제한구역법 시행령 별표 2 제2호 등 원문 파싱값(수정 금지, tools/build_greenbelt_data.py 로 재생성).",
+  "decree": {
+    "name": "개발제한구역의 지정 및 관리에 관한 특별조치법 시행령",
+    "mst": "288845",
+    "promulgation_no": "36587",
+    "effective": "20260918",
+    "effective_iso": "2026-09-18"
+  },
+  "act": {
+    "name": "개발제한구역의 지정 및 관리에 관한 특별조치법",
+    "mst": "286509",
+    "promulgation_no": "21738",
+    "effective": "20260602",
+    "effective_iso": "2026-06-02"
+  },
+  "annex2": {
+    "snapshot": "data/law_snapshots/greenbelt_decree_annex2_20260918.txt",
+    "status": "ok",
+    "general": {
+      "coverage_pct": 60,
+      "max_floors": 5,
+      "far_pct": 300
+    },
+    "housing": [
+      {
+        "coverage_pct": 60,
+        "max_floors": 3,
+        "far_pct": 300,
+        "max_floor_area_m2": 232,
+        "max_floor_area_designated_resident_m2": 300
+      },
+      {
+        "coverage_pct": 20,
+        "max_floors": 3,
+        "far_pct": 100
+      }
+    ],
+    "min_site_area_m2": 60,
+    "infrastructure_plan_threshold_m2": 1500
+  },
+  "art22": "data/law_snapshots/greenbelt_decree_art22.txt",
+  "art20": {
+    "snapshot": "data/law_snapshots/greenbelt_decree_art20_resident.txt",
+    "floor_area_m2": 1500,
+    "notice_days": 14
+  },
+  "act12": "data/law_snapshots/greenbelt_act_art12.txt"
+}
