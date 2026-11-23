@@ -8,6 +8,7 @@ import re
 
 _BULLET = re.compile(r"^[\s○◦·‧ㆍ•\-ㆍ◎※▪■]+")
 _CAT = re.compile(r"^(\d+(?:[-의]\d+)?)\.\s*(.+)$")
+_RULE_HINT = re.compile(r"시설면적|마다|(?:당|마다)\s*1\s*대|홀|타석|정원|주택건설기준|[:：]\s*\d|1대")
 _DUP = re.compile(r"^\(?\s*(?:시설면적\s*[/÷]\s*[\d,.]+\s*㎡|[^()]*[/÷×]\s*[\d.]+[^()]*)\)?$")
 _SQM = r"(?:㎡|제곱미터|m2)"
 _AREA = re.compile(r"시설면적\s*([\d,]+)\s*" + _SQM + r"\s*(?:당|마다)\s*1\s*대")
@@ -62,6 +63,11 @@ def split_annex(text):
         if cur is None:
             pre.append(l)
         else:
+            # 라벨이 줄바꿈된 경우(예: '3. 제1종 근린생활시설(…' 다음 줄이 '제2종 근린생활시설, 숙박시설') — 규칙 줄이 나오기 전까지는 라벨의 연속
+            if not cur["body"] and not cur.get("rule_seen") and not _RULE_HINT.search(nl) and not nl.startswith(("○", "◦", "·", "‧", "ㆍ", "•", "-")):
+                cur["label"] = (cur["label"] + " " + nl).strip()
+                continue
+            cur["rule_seen"] = True
             cur["body"].append(l)
     if cur:
         cats.append(cur)
@@ -129,6 +135,7 @@ def _rules_from_body(body, ncols):
 
 
 def parse_category(cat, columns):
+    cat = {k: v for k, v in cat.items() if k != "rule_seen"}
     """카테고리 하나 → dict(kind, rules/…). 단순하지 않으면 manual."""
     label, body = cat["label"], cat["body"]
     raw = "\n".join([cat["label"]] + body)

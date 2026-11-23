@@ -1,0 +1,293 @@
+{
+  "generated": "2026-11-23",
+  "note": "건축 조례 조경 구간·공개공지 조문 발췌(수정 금지, tools/build_landscape_data.py 로 재생성).",
+  "regions": {
+    "서울특별시": {
+      "ordinance": {
+        "name": "서울특별시 건축 조례",
+        "org": "서울특별시",
+        "mst": "2171799",
+        "promulgation_no": "10170",
+        "effective": "2026-11-12",
+        "snapshot": "data/law_snapshots/landscape/서울특별시_건축조례_조경_20261112.txt",
+        "article": "제24조(대지안의 조경)"
+      },
+      "status": "ok",
+      "tiers": [
+        {
+          "kind": "lt",
+          "max": 1000,
+          "pct": 5
+        },
+        {
+          "kind": "band",
+          "lo": 1000,
+          "hi": 2000,
+          "pct": 10
+        },
+        {
+          "kind": "ge",
+          "min": 2000,
+          "pct": 15
+        }
+      ],
+      "special_notes": [
+        "「서울특별시 도시계획 조례」제45조제2항에 따른 학교이적지 안의 건축물 : 대지면적의 30퍼센트 이상"
+      ],
+      "open_space": {
+        "snapshot": "data/law_snapshots/landscape/서울특별시_건축조례_공개공지_20261112.txt",
+        "article": "제26조(공개 공지 등의 확보) ① 영 제27조의2제1항 및 제2항에 따라 공개 공지(空地: 공터) 또는 공"
+      }
+    },
+    "부산광역시": {
+      "ordinance": {
+        "name": "부산광역시 건축 조례",
+        "org": "부산광역시",
+        "mst": "2112259",
+        "promulgation_no": "7894",
+        "effective": "2026-02-25",
+        "snapshot": "data/law_snapshots/landscape/부산광역시_건축조례_조경_20260225.txt",
+        "article": "제25조(대지안의 조경)"
+      },
+      "status": "ok",
+      "tiers": [
+        {
+          "kind": "lt",
+          "max": 1000,
+          "pct": 5
+        },
+        {
+          "kind": "band",
+          "lo": 1000,
+          "hi": 2000,
+          "pct": 10
+        },
+        {
+          "kind": "ge",
+          "min": 2000,
+          "pct": 15
+        }
+      ],
+      "special_notes": [],
+      "open_space": {
+        "snapshot": "data/law_snapshots/landscape/부산광역시_건축조례_공개공지_20260225.txt",
+        "article": "제48조(공개공지 등의 확보)"
+      }
+    },
+    "대구광역시": {
+      "ordinance": {
+        "name": "대구광역시 건축 조례",
+        "org": "대구광역시",
+        "mst": "2181437",
+        "promulgation_no": "6551",
+        "effective": "2026-11-12",
+        "snapshot": "data/law_snapshots/landscape/대구광역시_건축조례_조경_20261112.txt",
+        "article": "제30조(대지안의 조경)"
+      },
+      "status": "ok",
+      "tiers": [
+        {
+          "kind": "lt",
+          "max": 1000,
+          "pct": 5
+        },
+        {
+          "kind": "band",
+          "lo": 1000,
+          "hi": 2000,
+          "pct": 10
+        },
+        {
+          "kind": "ge",
+          "min": 2000,
+          "pct": 15
+        }
+      ],
+      "special_notes": [],
+      "open_space": {
+        "snapshot": "data/law_snapshots/landscape/대구광역시_건축조례_공개공지_20261112.txt",
+        "article": "제32조(공개공지 등의 확보)"
+      }
+    },
+    "인천광역시": {
+      "ordinance": {
+        "name": "인천광역시 건축 조례",
+        "org": "인천광역시",
+        "mst": "2150259",
+        "promulgation_no": "7764",
+        "effective": "2026-07-13",
+        "snapshot": "data/law_snapshots/landscape/인천광역시_건축조례_조경_20260713.txt",
+        "article": "제22조 (조경면적 등)"
+      },
+      "status": "ok",
+      "tiers": [
+        {
+          "kind": "lt",
+          "max": 1000,
+          "pct": 5
+        },
+        {
+          "kind": "band",
+          "lo": 1000,
+          "hi": 2000,
+          "pct": 10
+        },
+        {
+          "kind": "ge",
+          "min": 2000,
+          "pct": 15
+        }
+      ],
+      "special_notes": [],
+      "open_space": {
+        "snapshot": "data/law_snapshots/landscape/인천광역시_건축조례_공개공지_20260713.txt",
+        "article": "제36조 (공개공지등의 확보)"
+      }
+    },
+    "광주광역시": {
+      "ordinance": {
+        "name": "광주광역시 건축 조례",
+        "org": "(구)광주광역시",
+        "mst": "2084489",
+        "promulgation_no": "6642",
+        "effective": "2025-11-11",
+        "snapshot": "data/law_snapshots/landscape/광주광역시_건축조례_조경_20251111.txt",
+        "article": "제27조(대지안의 조경)"
+      },
+      "status": "ok",
+      "tiers": [
+        {
+          "kind": "lt",
+          "max": 1000,
+          "pct": 7
+        },
+        {
+          "kind": "band",
+          "lo": 1000,
+          "hi": 2000,
+          "pct": 13
+        },
+        {
+          "kind": "ge",
+          "min": 2000,
+          "pct": 15
+        }
+      ],
+      "special_notes": [],
+      "open_space": {
+        "snapshot": "data/law_snapshots/landscape/광주광역시_건축조례_공개공지_20251111.txt",
+        "article": "제36조(공개공지 등의 확보)"
+      }
+    },
+    "대전광역시": {
+      "ordinance": {
+        "name": "대전광역시 건축 조례",
+        "org": "대전광역시",
+        "mst": "2177567",
+        "promulgation_no": "6659",
+        "effective": "2026-10-08",
+        "snapshot": "data/law_snapshots/landscape/대전광역시_건축조례_조경_20261008.txt",
+        "article": "제32조(대지의 조경)"
+      },
+      "status": "ok",
+      "tiers": [
+        {
+          "kind": "lt",
+          "max": 1000,
+          "pct": 5
+        },
+        {
+          "kind": "band",
+          "lo": 1000,
+          "hi": 2000,
+          "pct": 10
+        },
+        {
+          "kind": "ge",
+          "min": 2000,
+          "pct": 15
+        }
+      ],
+      "special_notes": [],
+      "open_space": {
+        "snapshot": "data/law_snapshots/landscape/대전광역시_건축조례_공개공지_20261008.txt",
+        "article": "제34조(공개 공지 등의 확보)"
+      }
+    },
+    "울산광역시": {
+      "ordinance": {
+        "name": "울산광역시 건축 조례",
+        "org": "울산광역시",
+        "mst": "2081597",
+        "promulgation_no": "3181",
+        "effective": "2025-09-25",
+        "snapshot": "data/law_snapshots/landscape/울산광역시_건축조례_조경_20250925.txt",
+        "article": "제21조(대지 안의 조경)"
+      },
+      "status": "ok",
+      "tiers": [
+        {
+          "kind": "lt",
+          "max": 1000,
+          "pct": 5
+        },
+        {
+          "kind": "band",
+          "lo": 1000,
+          "hi": 2000,
+          "pct": 10
+        },
+        {
+          "kind": "ge",
+          "min": 2000,
+          "pct": 15
+        }
+      ],
+      "special_notes": [
+        "개발제한구역 및 자연취락지구: 대지면적의 5퍼센트 이상의 면적"
+      ],
+      "open_space": {
+        "snapshot": "data/law_snapshots/landscape/울산광역시_건축조례_공개공지_20250925.txt",
+        "article": "제57조(공개공지등의 확보)"
+      }
+    },
+    "세종특별자치시": {
+      "ordinance": {
+        "name": "세종특별자치시 건축 조례",
+        "org": "세종특별자치시",
+        "mst": "2163009",
+        "promulgation_no": "3029",
+        "effective": "2026-08-18",
+        "snapshot": "data/law_snapshots/landscape/세종특별자치시_건축조례_조경_20260818.txt",
+        "article": "제29조(대지의 조경)"
+      },
+      "status": "ok",
+      "tiers": [
+        {
+          "kind": "lt",
+          "max": 1000,
+          "pct": 5
+        },
+        {
+          "kind": "band",
+          "lo": 1000,
+          "hi": 2000,
+          "pct": 10
+        },
+        {
+          "kind": "ge",
+          "min": 2000,
+          "pct": 15
+        }
+      ],
+      "special_notes": [
+        "다만 예정지역 등 안에서는 다음 산식에 따른 대지면적의 Z퍼센트 이상(개정, 2018. 12. 10.)",
+        "Z: 해당 대지면적에 대한 비율, x: 해당 연면적의 합계"
+      ],
+      "open_space": {
+        "snapshot": "data/law_snapshots/landscape/세종특별자치시_건축조례_공개공지_20260818.txt",
+        "article": "제31조(공개공지 등의 확보)"
+      }
+    }
+  }
+}
