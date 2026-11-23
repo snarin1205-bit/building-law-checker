@@ -1,0 +1,17 @@
+name: Core v2 QA
+on:
+  push:
+    branches: ["renewal/opencrab-core-v2"]
+  workflow_dispatch:
+jobs:
+  core-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Unit tests (no network)
+        run: python -m unittest discover -s tests -v
+      - name: Compile updated modules
+        run: python -m py_compile app_v2.py law_core_v2.py
