@@ -4,8 +4,11 @@ Run: streamlit run app_v2.py
 This app is for early design-stage screening, not permitting conclusions.
 """
 import streamlit as st
-from building_law_checker import get_coordinates, get_land_use, get_district_plan, get_region
-from law_core_v2 import CORE_PACK_ID, route_laws, preview_area
+from building_law_checker import (get_coordinates, get_land_use, get_district_plan,
+                                  get_region, LAND_API_KEY)
+from law_core_v2 import (CORE_PACK_ID, route_laws, preview_area, far_counted_area,
+                         FAR_EXCLUSION_KEYS, sort_findings, findings_to_markdown,
+                         findings_to_json)
 
 st.set_page_config(page_title="현상설계 법규 분석 v2", page_icon="🏛️", layout="wide")
 st.title("현상설계 법규 분석 · Core v2")
@@ -29,21 +32,25 @@ with st.form("site_form"):
 
 if submitted:
     district = {"미확인": None, "적용": True, "비적용": False}[district_choice]
+    zones = []
     st.subheader("1. 기본 자료 확인")
-    if address.strip():
+    if not LAND_API_KEY:
+        st.error("VWORLD_API_KEY 환경변수가 설정되지 않아 주소·용도지역 조회를 건너뜁니다. 모든 대지 조건은 미확인 처리됩니다.")
+    elif address.strip():
         st.write(f"입력 주소: {address}")
         try:
             x, y = get_coordinates(address.strip())
             if x is None or y is None:
                 st.warning("주소 좌표 조회 실패: 용도지역/지구단위계획은 확인 필요")
             else:
-                zones = get_land_use(x, y)
+                zones = get_land_use(x, y) or []
                 plans = get_district_plan(x, y)
                 st.write("VWorld 용도지역 조회:", ", ".join(zones) if zones else "미확인 (조회 실패 또는 데이터 없음)")
                 st.write("VWorld 관련 계획 조회:", ", ".join(plans) if plans else "미확인 (없음으로 단정하지 않음)")
                 if district is None and plans:
                     district = True
         except Exception:
+            zones = []
             st.warning("외부 API 응답 확인 실패: 모든 미확정 항목은 확인 필요로 처리")
     else:
         st.info("주소가 없으므로 대지 관련 법규는 UNKNOWN으로 분류됩니다.")
@@ -53,14 +60,23 @@ if submitted:
         building_use=building_use, site_address=address,
         site_area=site_area or None, is_public=is_public,
         is_housing_project=is_housing, has_district_plan=district,
+        zone_names=zones,
     )
-    priority_order = {"REQUIRED": 0, "CONDITIONAL": 1, "UNKNOWN": 2, "LOW_PRIORITY": 3}
-    for f in sorted(findings, key=lambda x: priority_order[x.priority]):
+    for f in sort_findings(findings):
         with st.expander(f"[{f.priority}] {f.law_group}", expanded=f.priority == "REQUIRED"):
             st.write("조건:", f.condition)
             st.write("설계 영향:", f.design_impact)
             st.write("대응 전략:", f.action)
             st.caption(f"근거 상태: {f.evidence_status}")
+            if f.source_url:
+                st.markdown(f"[원문 확인 링크]({f.source_url}) (시행일·조문은 직접 확인)")
+    ctx = {"주소": address or "미입력", "주용도": building_use or "미입력",
+           "VWorld 용도지역": ", ".join(zones) if zones else "미확인"}
+    d1, d2 = st.columns(2)
+    d1.download_button("검토 결과 .md 저장", findings_to_markdown(findings, ctx),
+                       file_name="law_review.md", mime="text/markdown")
+    d2.download_button("검토 결과 .json 저장", findings_to_json(findings, ctx),
+                       file_name="law_review.json", mime="application/json")
 
     st.subheader("3. 규모 시나리오 계산")
     st.info("법규 적용 비율은 자동 확정하지 않습니다. 아래 수치를 직접 확인해서 입력하면 산술 시나리오만 계산합니다.")
@@ -70,6 +86,14 @@ if submitted:
 
 if "site_snapshot" in st.session_state:
     data = st.session_state["site_snapshot"]
+    with st.expander("용적률 산정용 연면적 계산기 (제외면적 직접 입력)"):
+        total_fa = st.number_input("전체 연면적 (㎡)", min_value=0.0, value=0.0, key="total_fa")
+        ex_in = {k: st.number_input(label + " (㎡)", min_value=0.0, value=0.0, key="ex_" + k)
+                 for k, label in FAR_EXCLUSION_KEYS.items()}
+        if total_fa > 0:
+            res = far_counted_area(total_fa, ex_in)
+            st.json(res)
+            st.caption("제외 가능 여부·범위는 조문·조례로 확인 후, 결과를 위 '용적률 산정용 연면적'에 반영하세요.")
     c1, c2 = st.columns(2)
     with c1:
         coverage = st.number_input("검토용 건폐율 (%)", min_value=0.0, max_value=100.0, value=0.0, step=1.0)
