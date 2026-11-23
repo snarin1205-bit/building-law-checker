@@ -83,5 +83,54 @@ class VWorldClientTests(unittest.TestCase):
                 os.environ["VWORLD_API_KEY"] = old
 
 
+def addr_ok(x, y):
+    return FakeResp({"response": {"status": "OK", "result": {"point": {"x": str(x), "y": str(y)}}}})
+
+
+class GeocodeTests(unittest.TestCase):
+    KW = dict(key="SECRETKEY123", domain="localhost:8501", sleep=0)
+
+    def test_parcel_ok(self):
+        g = getter_seq(addr_ok(127.1, 36.2))
+        r = v.geocode("대전 어딘가", getter=g, **self.KW)
+        self.assertEqual((r["status"], r["x"], r["y"], r["type"]), ("OK", 127.1, 36.2, "parcel"))
+        self.assertEqual(g.calls[0]["domain"], "localhost:8501")
+
+    def test_falls_back_to_road(self):
+        g = getter_seq(FakeResp({"response": {"status": "NOT_FOUND"}}), addr_ok(127.3, 36.3))
+        r = v.geocode("둔산로 100", getter=g, **self.KW)
+        self.assertEqual((r["status"], r["type"]), ("OK", "road"))
+        self.assertEqual([c["type"] for c in g.calls], ["parcel", "road"])
+
+    def test_all_not_found(self):
+        g = getter_seq(FakeResp({"response": {"status": "NOT_FOUND"}}))
+        r = v.geocode("없는주소", getter=g, **self.KW)
+        self.assertEqual((r["status"], r["error"]), ("NOT_FOUND", None))
+
+    def test_error_surfaces_code_without_key(self):
+        g = getter_seq(FakeResp({"response": {"status": "ERROR", "error": {"code": "INCORRECT_KEY"}}}))
+        r = v.geocode("x", getter=g, **self.KW)
+        self.assertEqual(r["status"], "ERROR")
+        self.assertIn("INCORRECT_KEY", r["error"])
+        self.assertNotIn("SECRETKEY123", str(r))
+
+    def test_network_failure_is_error_not_not_found(self):
+        def boom(url, params=None, timeout=None):
+            raise ConnectionError("blocked")
+        r = v.geocode("x", getter=boom, **self.KW)
+        self.assertEqual(r["status"], "ERROR")
+        self.assertIn("ConnectionError", r["error"])
+
+    def test_empty_address_and_missing_key(self):
+        self.assertEqual(v.geocode("  ", getter=getter_seq(addr_ok(1, 2)), **self.KW)["status"], "NOT_FOUND")
+        import os
+        old = os.environ.pop("VWORLD_API_KEY", None)
+        try:
+            self.assertEqual(v.geocode("x", getter=getter_seq(addr_ok(1, 2)))["status"], "ERROR")
+        finally:
+            if old is not None:
+                os.environ["VWORLD_API_KEY"] = old
+
+
 if __name__ == "__main__":
     unittest.main()

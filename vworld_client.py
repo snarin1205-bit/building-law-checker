@@ -69,3 +69,54 @@ def lookup_zones(x, y, **kw):
 
 def lookup_district_plan(x, y, **kw):
     return query_layer(LAYER_DISTRICT_PLAN, x, y, **kw)
+
+
+ADDRESS_URL = "https://api.vworld.kr/req/address"
+
+
+def geocode(address, key=None, domain=None, getter=None, retries=2, sleep=1.0, timeout=20):
+    """주소 → 좌표. 지번(parcel) → 도로명(road) 순으로 시도한다.
+
+    반환: {"status": "OK"|"NOT_FOUND"|"ERROR", "x": float|None, "y": float|None, "type": str|None, "error": str|None}
+    ERROR 는 어느 유형에서든 조회 자체가 실패한 경우(오류 코드·예외명 포함, 키는 포함하지 않음).
+    모든 유형이 NOT_FOUND 이면 NOT_FOUND."""
+    key, domain = _config(key, domain)
+    if not (address or "").strip():
+        return {"status": "NOT_FOUND", "x": None, "y": None, "type": None, "error": None}
+    if not key:
+        return {"status": "ERROR", "x": None, "y": None, "type": None, "error": "VWORLD_API_KEY 미설정"}
+    if getter is None:
+        import requests
+        getter = requests.get
+    errors = []
+    for addr_type in ("parcel", "road"):
+        params = {"service": "address", "request": "getcoord", "key": key, "domain": domain,
+                  "address": address.strip(), "type": addr_type, "format": "json"}
+        last = None
+        for attempt in range(retries + 1):
+            try:
+                r = getter(ADDRESS_URL, params=params, timeout=timeout)
+                resp = r.json()["response"]
+            except Exception as e:
+                last = f"{addr_type}: 응답 처리 실패({type(e).__name__})"
+                if attempt < retries:
+                    time.sleep(sleep)
+                continue
+            status = resp.get("status")
+            if status == "OK":
+                pt = resp["result"]["point"]
+                return {"status": "OK", "x": float(pt["x"]), "y": float(pt["y"]), "type": addr_type, "error": None}
+            if status == "NOT_FOUND":
+                last = None
+                break
+            code = str((resp.get("error") or {}).get("code", status))
+            last = f"{addr_type}: VWorld 오류 {code}"
+            if code in NON_RETRY_CODES:
+                break
+            if attempt < retries:
+                time.sleep(sleep)
+        if last:
+            errors.append(last)
+    if errors:
+        return {"status": "ERROR", "x": None, "y": None, "type": None, "error": "; ".join(errors)}
+    return {"status": "NOT_FOUND", "x": None, "y": None, "type": None, "error": None}

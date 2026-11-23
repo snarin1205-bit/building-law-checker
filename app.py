@@ -4,8 +4,8 @@ Run: streamlit run app.py
 This app is for early design-stage screening, not permitting conclusions.
 """
 import streamlit as st
-from building_law_checker import get_coordinates, LAND_API_KEY
-from vworld_client import lookup_zones, lookup_district_plan
+from building_law_checker import LAND_API_KEY
+from vworld_client import geocode, lookup_zones, lookup_district_plan
 from law_core_v2 import (CORE_PACK_ID, route_laws, preview_area, far_counted_area,
                          FAR_EXCLUSION_KEYS, sort_findings, findings_to_markdown,
                          findings_to_json, parking_required,
@@ -42,9 +42,12 @@ if submitted:
     elif address.strip():
         st.write(f"입력 주소: {address}")
         try:
-            x, y = get_coordinates(address.strip())
-            if x is None or y is None:
-                st.warning("주소 좌표 조회 실패: 용도지역/지구단위계획은 확인 필요")
+            gc = geocode(address.strip())
+            x, y = gc["x"], gc["y"]
+            if gc["status"] == "ERROR":
+                st.warning(f"주소 좌표 조회 실패: {gc['error']} — 용도지역/지구단위계획은 미확인으로 처리합니다.")
+            elif gc["status"] == "NOT_FOUND":
+                st.warning("주소를 찾지 못했습니다(지번·도로명 모두 결과 없음). 주소 표기를 확인하세요. 용도지역/지구단위계획은 미확인으로 처리합니다.")
             else:
                 zr = lookup_zones(x, y)
                 pr = lookup_district_plan(x, y)
