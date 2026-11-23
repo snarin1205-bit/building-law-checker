@@ -39,7 +39,7 @@ def slice_annex(text):
     for i, l in enumerate(lines):
         if "부설주차장" in l and ("설치대상" in l or "설치기준" in l) and "제한" not in l:
             win = " ".join(lines[i:i + 4])
-            if "시설물" in win:
+            if "시설물" in win or "건축물" in win:
                 start = i - 1 if i > 0 and re.match(r"^\s*\[?\s*별표", lines[i - 1]) else i
                 break
     if start is None:

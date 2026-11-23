@@ -9,15 +9,16 @@ import re
 _BULLET = re.compile(r"^[\s○◦·‧ㆍ•\-ㆍ◎※▪■]+")
 _CAT = re.compile(r"^(\d+(?:[-의]\d+)?)\.\s*(.+)$")
 _DUP = re.compile(r"^\(?\s*(?:시설면적\s*[/÷]\s*[\d,.]+\s*㎡|[^()]*[/÷×]\s*[\d.]+[^()]*)\)?$")
-_AREA = re.compile(r"시설면적\s*([\d,]+)\s*㎡\s*당\s*1\s*대")
-_LAB_AREA = re.compile(r"^\s*([^:：]{1,60}?)\s*[:：]\s*시설면적\s*([\d,]+)\s*㎡\s*당\s*1\s*대")
+_SQM = r"(?:㎡|제곱미터|m2)"
+_AREA = re.compile(r"시설면적\s*([\d,]+)\s*" + _SQM + r"\s*당\s*1\s*대")
+_LAB_AREA = re.compile(r"^\s*([^:：]{1,60}?)\s*[:：]\s*시설면적\s*([\d,]+)\s*" + _SQM + r"\s*당\s*1\s*대")
 _GOLF = re.compile(r"골프장\s*[:：]?\s*1\s*홀\s*당\s*([\d.]+)\s*대")
 _RANGE_A = re.compile(r"골프연습장\s*[:：]?\s*1\s*타석\s*당\s*([\d.]+)\s*대")
 _RANGE_B = re.compile(r"골프연습장\s*[:：]?\s*([\d.]+)\s*타석\s*당\s*1\s*대")
 _POOL = re.compile(r"옥외수영장\s*[:：]?\s*정원\s*([\d,]+)\s*(?:인|명)\s*당\s*1\s*대")
 _STAND = re.compile(r"관람장\s*[:：]?\s*정원\s*([\d,]+)\s*(?:인|명)\s*당\s*1\s*대")
-_DET_LOWER = re.compile(r"50\s*㎡\s*초과\s*([\d,]+)\s*㎡\s*이하")
-_DET_STEP = re.compile(r"([\d,]+)\s*㎡\s*(?:를\s*)?초과(?:하는)?\s*([\d,]+)\s*㎡\s*당\s*1\s*대")
+_DET_LOWER = re.compile(r"50\s*" + _SQM + r"\s*초과\s*([\d,]+)\s*" + _SQM + r"\s*이하")
+_DET_STEP = re.compile(r"([\d,]+)\s*" + _SQM + r"\s*(?:를\s*)?초과(?:하는)?\s*([\d,]+)\s*" + _SQM + r"\s*당\s*1\s*대")
 
 
 def _n(s):
@@ -33,6 +34,7 @@ def split_annex(text):
     lines = [l.strip() for l in text.splitlines() if l.strip()]
     cats, cur, pre, notes = [], None, [], []
     in_notes = False
+    last_primary = 0
     for l in lines:
         nl = _norm_line(l)
         if re.match(r"^(비\s*고|<\s*비고\s*>|\[\s*비고\s*\]|※\s*비\s*고)", nl):
@@ -44,6 +46,15 @@ def split_annex(text):
             notes.append(l); continue
         m = _CAT.match(nl)
         if m and not re.match(r"^\d+\.\s*\d", nl):
+            primary = int(re.match(r"\d+", m.group(1)).group(0))
+            if primary <= last_primary and "-" not in m.group(1) and "의" not in m.group(1):
+                # 번호가 거꾸로 가면(예: 표 11호 다음의 '1. 시설물의 종류는…') 비고 구간으로 본다
+                in_notes = True
+                if cur:
+                    cats.append(cur); cur = None
+                notes.append(l)
+                continue
+            last_primary = max(last_primary, primary)
             if cur:
                 cats.append(cur)
             cur = {"no": m.group(1), "label": m.group(2).strip(), "body": []}

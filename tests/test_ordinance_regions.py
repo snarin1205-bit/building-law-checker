@@ -105,9 +105,19 @@ class RegionLookup(unittest.TestCase):
         self.assertEqual(region_of("서울 강남구 테헤란로"), "서울특별시")
         self.assertEqual(region_of("광주광역시 북구 용봉동"), "광주광역시")
         self.assertEqual(region_of("광주 북구 용봉동"), "광주광역시")
-        self.assertIsNone(region_of("경기도 광주시 오포읍"))  # 광주광역시가 아님
-        self.assertIsNone(region_of("충청남도 계룡시"))
+        self.assertNotEqual(region_of("경기도 광주시 오포읍"), "광주광역시")  # 경기도 광주시는 광주광역시가 아님
+        self.assertIsNone(region_of("경기도 존재하지않는시 어딘구"))  # 데이터에 없는 시·군
         self.assertIsNone(region_of(""))
+        self.assertIsNone(region_of("경기도"))  # 시·군 토큰 없음
+
+    def test_local_city_resolution_follows_data(self):
+        """도 소재 시·군은 '도 시' 키가 데이터에 있을 때만 인식하고, 시 아래 구는 무시한다."""
+        regs = {"경기도 성남시": {}, "충청남도 천안시": {}}
+        self.assertEqual(region_of("경기도 성남시 분당구 정자일로 95", regs), "경기도 성남시")
+        self.assertEqual(region_of("경기 성남시 수정구", regs), "경기도 성남시")  # 약칭
+        self.assertEqual(region_of("충남 천안시 서북구", regs), "충청남도 천안시")
+        self.assertIsNone(region_of("경기도 수원시 팔달구", regs))  # 데이터 없음
+        self.assertIsNone(region_of("강원도 춘천시", regs))
 
     def test_county_warning(self):
         self.assertEqual(county_in("부산광역시 기장군 기장읍"), "기장군")
@@ -129,9 +139,19 @@ class RegionLookup(unittest.TestCase):
         self.assertEqual(zone_limits_for("서울특별시 종로구", [])["status"], "UNKNOWN")
 
     def test_no_region_is_not_guessed(self):
-        r = zone_limits_for("경기도 성남시 분당구", ["제2종일반주거지역"])
+        r = zone_limits_for("경기도 존재하지않는시 어딘구", ["제2종일반주거지역"])
         self.assertEqual(r["status"], "NO_REGION")
         self.assertEqual(r["matches"], [])
+
+    def test_connected_local_city_returns_its_own_ordinance(self):
+        local = [k for k in load()["regions"] if " " in k]
+        if not local:
+            self.skipTest("도 소재 시·군 데이터 없음")
+        key = local[0]
+        r = zone_limits_for(key + " 어딘가", ["제2종일반주거지역"])
+        self.assertNotEqual(r["status"], "NO_REGION")
+        self.assertEqual(r["region"], key)
+        self.assertTrue(r["law"]["name"])
 
     def test_space_insensitive_zone_match(self):
         r = zone_limits_for("인천광역시 남동구", ["제2종 일반주거지역"])

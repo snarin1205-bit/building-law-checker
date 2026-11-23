@@ -11,7 +11,8 @@ from law_core_v2 import (CORE_PACK_ID, route_laws, preview_area, far_counted_are
                          findings_to_json, parking_required,
                          PARKING_RULES, PARKING_MANUAL_KEYS)
 from ordinance_parse import CANON_ZONES
-from ordinance_regions import zone_limits_for, region_of
+from ordinance_regions import zone_limits_for, region_of, connected_count
+from sunlight_regions import setback as sun_setback, note as sun_note, region_data as sun_region_data
 from parking_regions import build as pk_build, parking_required_region, region_data as pk_region_data
 from ordinance_daejeon import (is_daejeon, parking_required_daejeon, DJ_PARKING_RULES,
                                DJ_MANUAL_KEYS, DJ_UNDEFINED_KEYS, DJ_META, DJ_SUNLIGHT_NOTE, dj_sunlight_setback)
@@ -114,7 +115,8 @@ if submitted:
     if zl["status"] == "NO_REGION":
         if address.strip():
             st.subheader("2-1. 지자체 조례 기준")
-            st.info("이 주소의 지자체 조례는 아직 연결되어 있지 않습니다(연결 지역: 서울·부산·대구·인천·광주·대전·울산·세종 도시계획 조례). "
+            n_all, n_local = connected_count()
+            st.info(f"이 주소의 지자체 도시계획 조례는 아직 연결되어 있지 않습니다(연결: 광역시·특별시 8곳과 도 소재 시·군 {n_local}곳). "
                     "건폐율·용적률은 해당 지자체 도시계획 조례 원문으로 직접 확인하세요.")
     else:
         st.subheader(f"2-1. {zl['region']} 조례 기준 (원문 연결)")
@@ -131,20 +133,25 @@ if submitted:
             st.caption("※ " + c)
         L = zl["law"]
         st.caption(f"근거: {L['name']} (공포 {L['promulgation_no']}, 시행 {L['effective']}) — 원문 사본 {L['snapshot']}")
-    if is_daejeon(address):
-        with st.expander("일조(정북) 이격거리 — 법 하한과 대전 조례 비교"):
-            st.write(DJ_SUNLIGHT_NOTE)
+    sun_region = region_of(address)
+    if address.strip():
+        with st.expander(f"일조(정북) 이격거리 — 법 하한" + (f"과 {sun_region} 건축 조례 비교" if sun_region and sun_region_data(sun_region) else "")):
+            st.write(sun_note(sun_region if sun_region and sun_region_data(sun_region) else None))
             hs = st.text_input("건축물 부분 높이(m), 쉼표로 여러 개", value="10, 14, 20", key="sun_heights")
             rows = []
             for tok in [t.strip() for t in hs.split(",") if t.strip()]:
-                r = dj_sunlight_setback(tok)
+                r = sun_setback(sun_region or "", tok)
                 if r["status"] == "PREVIEW":
                     rows.append({"높이(m)": r["height_m"], "법 하한(m)": r["law_min_m"],
                                  "조례 문언(m)": r["ordinance_text_m"], "안전측(m)": r["conservative_m"],
                                  "법·조례 불일치": "예" if r["conflict"] else "아니오"})
+                elif r["status"] == "NO_DATA":
+                    rows.append({"높이(m)": r["height_m"], "법 하한(m)": r["law_min_m"], "조례 문언(m)": "미확인",
+                                 "안전측(m)": r["law_min_m"], "법·조례 불일치": "-"})
             if rows:
                 st.table(rows)
                 st.caption("정북 인접 대지의 용도지역이 전용·일반주거지역이 아니면 적용되지 않습니다(영 제86조제2항). 확정값이 아니라 안전측 제시입니다.")
+    if is_daejeon(address):
         st.caption("유성구 조례(주차장·도시계획)에는 건폐율·용적률·부설주차장 설치기준 수치가 없고 "
                    "광역시 조례를 따릅니다. 구 조례의 인근설치 300m, 설치의무 면제 규정은 주차 계산 결과의 참고 항목에 표시됩니다.")
 
@@ -252,4 +259,4 @@ if "site_snapshot" in st.session_state:
         st.json(preview)
         st.warning("WITHIN_INPUT_LIMIT는 입력된 비율에 대한 산술 판정일 뿐, 법적 적합 판정이 아닙니다.")
 st.divider()
-st.caption("현재 제한: 조례는 광역시·특별시 8곳(서울·부산·대구·인천·광주·대전·울산·세종)의 도시계획 조례 건폐율·용적률과 대전의 주차·일조만 연결(그 밖의 지자체·조례는 직접 확인). 정북일조는 법 하한과 대전 조례 문언을 비교한 안전측 값만 제시(조례 개정 여부 미확인), 3D 검토·피난 산정 미구현. 법령 개정 감지는 law_sync.py 실행. 기존 app.py는 레거시로 보존.")
+st.caption("현재 제한: 조례는 광역시·특별시 8곳(서울·부산·대구·인천·광주·대전·울산·세종)의 도시계획 조례 건폐율·용적률과 대전의 주차·일조만 연결(그 밖의 지자체·조례는 직접 확인). 정북일조는 법 하한과 조례 문언을 비교한 안전측 값만 제시(조례의 법 개정 반영 여부는 조례별로 표시), 3D 검토·피난 산정 미구현. 법령 개정 감지는 law_sync.py 실행. 기존 app.py는 레거시로 보존.")

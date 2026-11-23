@@ -51,7 +51,20 @@ def sources():
                         "queries": [o["name"]]})
     except Exception:
         pass
-    # 지역별 주차장 조례(data/parking_ordinances.json)
+    # 지역별 건축 조례(일조): data/sunlight_ordinances.json
+    try:
+        from sunlight_regions import load as load_sun
+        for r in load_sun()["regions"].values():
+            o = r["ordinance"]
+            if (o["name"], o["org"]) in seen:
+                continue
+            seen.add((o["name"], o["org"]))
+            out.append({"name": o["name"], "kind": "ordin", "org": o["org"],
+                        "promulgation_no": o["promulgation_no"], "effective": o["effective"],
+                        "queries": [o["name"]]})
+    except Exception:
+        pass
+    # 지역별 주차장 조례(data/parking_ordinances.json, data/local_parking.json)
     try:
         from parking_regions import load as load_parking
         for r in load_parking()["regions"].values():
@@ -82,6 +95,17 @@ def _date(s):
     return f"{s[:4]}-{s[4:6]}-{s[6:8]}" if len(s) == 8 else s
 
 
+def _memo(fetch):
+    cache = {}
+
+    def f(params):
+        k = tuple(sorted(params.items()))
+        if k not in cache:
+            cache[k] = fetch(params)
+        return cache[k]
+    return f
+
+
 def find_current(src, fetch=_http_fetch):
     """프록시 검색 결과에서 이름(·기관)이 정확히 일치하는 행의 (공포번호, 시행일) 반환."""
     endpoint = "lawSearchList" if src["kind"] == "law" else "ordinSearchList"
@@ -105,6 +129,7 @@ def find_current(src, fetch=_http_fetch):
 
 
 def check_drift(fetch=_http_fetch):
+    fetch = _memo(fetch)
     results = []
     for s in sources():
         try:

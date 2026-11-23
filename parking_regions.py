@@ -11,13 +11,18 @@ from fractions import Fraction
 from law_core_v2 import parking_required
 
 DATA_FILE = pathlib.Path(__file__).resolve().parent / "data" / "parking_ordinances.json"
+LOCAL_FILE = pathlib.Path(__file__).resolve().parent / "data" / "local_parking.json"
 _cache = None
 
 
 def load():
+    """광역시·특별시 8곳 + 도 소재 시·군(local_parking.json) 병합."""
     global _cache
     if _cache is None:
-        _cache = json.loads(DATA_FILE.read_text(encoding="utf-8"))
+        d = json.loads(DATA_FILE.read_text(encoding="utf-8"))
+        if LOCAL_FILE.exists():
+            d["regions"] = {**d["regions"], **json.loads(LOCAL_FILE.read_text(encoding="utf-8"))["regions"]}
+        _cache = d
     return _cache
 
 

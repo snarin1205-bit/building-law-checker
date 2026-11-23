@@ -161,23 +161,7 @@ DJ_SUNLIGHT_NOTE = (
 )
 
 
-def dj_sunlight_ordinance_value(part_height_m):
-    """대전광역시 건축 조례 제43조제1항 문언 값(영 제86조제1항 인용 기준). 개정 여부 미확인."""
-    h = float(part_height_m)
-    return 1.5 if h <= 10 else h / 2
-
-
 def dj_sunlight_setback(part_height_m):
-    """정북일조 이격거리: 법 하한과 대전 조례 문언 값 비교. 확정값이 아니라 안전측 제시."""
-    from law_core_v2 import north_light_law_minimum
-    law = north_light_law_minimum(part_height_m)
-    if law["status"] != "PREVIEW":
-        return law
-    h = law["height_m"]
-    ordv = round(dj_sunlight_ordinance_value(h), 3)
-    lawv = law["law_min_m"]
-    return {"status": "PREVIEW", "height_m": h, "law_min_m": lawv, "ordinance_text_m": ordv,
-            "conservative_m": max(lawv, ordv), "conflict": abs(lawv - ordv) > 1e-9,
-            "law": law["law"], "ordinance": DJ_META["building"],
-            "reason": "법 하한(건축법 제61조제1항)과 대전 조례 제43조 문언 값을 비교한 안전측 값. 조례가 법 개정에 맞춰 "
-                      "개정되었는지·영 제86조제2항 예외(정북 인접 대지 용도지역 등)는 확인되지 않음"}
+    """대전 정북일조 이격거리: 법 하한과 대전 건축 조례 문언 값 비교(일반 모듈 sunlight_regions 위임)."""
+    from sunlight_regions import setback
+    return setback("대전광역시", part_height_m)

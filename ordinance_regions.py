@@ -7,6 +7,7 @@ import json
 import pathlib
 
 DATA_FILE = pathlib.Path(__file__).resolve().parent / "data" / "ordinance_zone_limits.json"
+LOCAL_FILE = pathlib.Path(__file__).resolve().parent / "data" / "local_zone_limits.json"
 
 # 주소 앞부분 → 지역 키
 _PREFIXES = (
@@ -32,18 +33,44 @@ _cache = None
 
 
 def load():
+    """광역시·특별시 8곳 + 도 소재 시·군(local_zone_limits.json) 병합."""
     global _cache
     if _cache is None:
-        _cache = json.loads(DATA_FILE.read_text(encoding="utf-8"))
+        d = json.loads(DATA_FILE.read_text(encoding="utf-8"))
+        if LOCAL_FILE.exists():
+            d["regions"] = {**d["regions"], **json.loads(LOCAL_FILE.read_text(encoding="utf-8"))["regions"]}
+        _cache = d
     return _cache
 
 
-def region_of(address):
+# 주소 첫 토큰(약칭 포함) → 법제처 지자체기관명의 도 이름
+SIDO_ALIAS = {
+    "경기": "경기도", "경기도": "경기도", "강원": "강원특별자치도", "강원도": "강원특별자치도", "강원특별자치도": "강원특별자치도",
+    "충북": "충청북도", "충청북도": "충청북도", "충남": "충청남도", "충청남도": "충청남도",
+    "전북": "전북특별자치도", "전라북도": "전북특별자치도", "전북특별자치도": "전북특별자치도",
+    "전남": "전라남도", "전라남도": "전라남도", "경북": "경상북도", "경상북도": "경상북도",
+    "경남": "경상남도", "경상남도": "경상남도", "제주": "제주특별자치도", "제주도": "제주특별자치도", "제주특별자치도": "제주특별자치도",
+}
+
+
+def region_of(address, regions=None):
+    """주소 → 지역 키. 광역시·특별시 8곳은 prefix, 도 소재 시·군은 '경기도 성남시' 형태. 데이터가 없는 지역은 None."""
     a = (address or "").strip()
     for prefix, key in _PREFIXES:
         if a.startswith(prefix):
             return key
+    toks = a.split()
+    if len(toks) >= 2 and toks[0] in SIDO_ALIAS and toks[1].endswith(("시", "군")):
+        key = f"{SIDO_ALIAS[toks[0]]} {toks[1]}"
+        known = regions if regions is not None else load()["regions"]
+        if key in known:
+            return key
     return None
+
+
+def connected_count():
+    r = load()["regions"]
+    return len(r), sum(1 for k in r if " " in k)
 
 
 def county_in(address):

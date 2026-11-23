@@ -204,6 +204,34 @@ class Calculation(unittest.TestCase):
         self.assertIn("c4", special)
 
 
+class ParserRobustness(unittest.TestCase):
+    SAMPLE = ("부설주차장 설치기준(제14조 관련)\n시설물\n설치기준\n"
+              "1. 위락시설\n- 시설면적 70제곱미터 당 1대\n"
+              "2. 문화 및 집회시설\n- 시설면적 100제곱미터 당 1대\n"
+              "3. 단독주택\n- 시설면적 50제곱미터 초과 150제곱미터 이하는 1대, 150제곱미터 초과하는 100제곱미터당 1대를 더한 대수\n"
+              "4. 창고시설\n시설면적 400㎡당 1대\n"
+              "1. 시설물의 종류는 다른 법령에 특별한 규정이 없는 한 건축법 시행령 별표 1에 따른다.\n"
+              "2. 시설물의 시설면적은 공용면적을 포함한 바닥면적의 합계를 말한다.\n")
+
+    def test_square_meter_word_is_read(self):
+        r = parse_parking_annex(self.SAMPLE)
+        by = {c["no"]: c for c in r["categories"]}
+        self.assertEqual(by["1"]["kind"], "area")
+        self.assertEqual(by["1"]["rules"][0]["values"][0]["div"], "70")
+        self.assertEqual((by["3"]["kind"], by["3"]["upper"], by["3"]["step"]), ("detached", 150, 100))
+
+    def test_numbered_notes_without_header_do_not_become_categories(self):
+        r = parse_parking_annex(self.SAMPLE)
+        self.assertEqual([c["no"] for c in r["categories"]], ["1", "2", "3", "4"])
+        self.assertEqual(len(r["notes"]), 2)
+
+    def test_partial_read_is_manual_not_silent(self):
+        txt = ("1. 업무시설\n시설면적 100㎡당 1대\n일부 지역은 시설면적 150㎡당 1대\n")
+        r = parse_parking_annex(txt)
+        # 규칙이 2개 표기됐지만 열 구성이 없으므로 한쪽을 임의로 택하지 않고 수동 처리
+        self.assertEqual(r["categories"][0]["kind"], "manual")
+
+
 class SyncCoverage(unittest.TestCase):
     def test_sync_covers_parking_ordinances(self):
         import law_sync
