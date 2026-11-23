@@ -4,8 +4,8 @@ Run: streamlit run app_v2.py
 This app is for early design-stage screening, not permitting conclusions.
 """
 import streamlit as st
-from building_law_checker import (get_coordinates, get_land_use, get_district_plan,
-                                  get_region, LAND_API_KEY)
+from building_law_checker import get_coordinates, LAND_API_KEY
+from vworld_client import lookup_zones, lookup_district_plan
 from law_core_v2 import (CORE_PACK_ID, route_laws, preview_area, far_counted_area,
                          FAR_EXCLUSION_KEYS, sort_findings, findings_to_markdown,
                          findings_to_json, parking_required,
@@ -46,10 +46,22 @@ if submitted:
             if x is None or y is None:
                 st.warning("주소 좌표 조회 실패: 용도지역/지구단위계획은 확인 필요")
             else:
-                zones = get_land_use(x, y) or []
-                plans = get_district_plan(x, y)
-                st.write("VWorld 용도지역 조회:", ", ".join(zones) if zones else "미확인 (조회 실패 또는 데이터 없음)")
-                st.write("VWorld 관련 계획 조회:", ", ".join(plans) if plans else "미확인 (없음으로 단정하지 않음)")
+                zr = lookup_zones(x, y)
+                pr = lookup_district_plan(x, y)
+                zones = zr["names"]
+                plans = pr["names"]
+                if zr["status"] == "ERROR":
+                    st.warning(f"용도지역 조회 실패: {zr['error']} — 용도지역은 미확인으로 처리합니다.")
+                elif zr["status"] == "NOT_FOUND":
+                    st.write("VWorld 용도지역 조회: 조회는 되었으나 해당 지점의 용도지역 데이터 없음 (미확인으로 처리)")
+                else:
+                    st.write("VWorld 용도지역 조회:", ", ".join(zones))
+                if pr["status"] == "ERROR":
+                    st.warning(f"지구단위계획 조회 실패: {pr['error']} — 미확인으로 처리합니다.")
+                elif pr["status"] == "NOT_FOUND":
+                    st.write("VWorld 지구단위계획구역 조회: 해당 지점에 구역 데이터 없음 (법적 '비적용' 확정은 아님, 결정도서 확인)")
+                else:
+                    st.write("VWorld 지구단위계획구역 조회:", ", ".join(plans))
                 if district is None and plans:
                     district = True
         except Exception:
