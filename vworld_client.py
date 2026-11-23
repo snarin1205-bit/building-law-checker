@@ -9,8 +9,6 @@ INCORRECT_KEY 가 조용히 '미확인'이 되었다. 지구단위계획은 LT_C
 import os
 import time
 
-import requests
-
 LAYER_ZONE = "LT_C_UQ111"           # 용도지역(도시지역)
 LAYER_DISTRICT_PLAN = "LT_C_UQ141"  # 지구단위계획구역
 DATA_URL = "https://api.vworld.kr/req/data"
@@ -21,13 +19,16 @@ def _config(key=None, domain=None):
     return key or os.getenv("VWORLD_API_KEY", ""), domain or os.getenv("VWORLD_DOMAIN", "localhost:8501")
 
 
-def query_layer(layer, x, y, key=None, domain=None, getter=requests.get, retries=2, sleep=1.0):
+def query_layer(layer, x, y, key=None, domain=None, getter=None, retries=2, sleep=1.0):
     """반환: {"status": "OK"|"NOT_FOUND"|"ERROR", "names": [...], "error": str|None}
     OK 는 feature 가 있다는 뜻, NOT_FOUND 는 조회는 성공했으나 해당 지점에 feature 가 없다는 뜻이다
     (법적 '비적용' 확정이 아님). ERROR 는 조회 자체가 실패한 것이며 오류 메시지에 키는 포함하지 않는다."""
     key, domain = _config(key, domain)
     if not key:
         return {"status": "ERROR", "names": [], "error": "VWORLD_API_KEY 미설정"}
+    if getter is None:
+        import requests  # 지연 import: 오프라인 테스트·CI 에 requests 가 없어도 모듈을 불러올 수 있게 함
+        getter = requests.get
     params = {"service": "data", "request": "GetFeature", "data": layer, "key": key, "domain": domain,
               "geomFilter": f"POINT({x} {y})", "geometry": "false", "attribute": "true",
               "format": "json", "size": "10"}
