@@ -51,6 +51,19 @@ def sources():
                         "queries": [o["name"]]})
     except Exception:
         pass
+    # 지역별 주차장 조례(data/parking_ordinances.json)
+    try:
+        from parking_regions import load as load_parking
+        for r in load_parking()["regions"].values():
+            o = r["ordinance"]
+            if (o["name"], o["org"]) in seen:
+                continue
+            seen.add((o["name"], o["org"]))
+            out.append({"name": o["name"], "kind": "ordin", "org": o["org"],
+                        "promulgation_no": o["promulgation_no"], "effective": o["effective"],
+                        "queries": ["주차장 조례", "주차장", o["name"]]})
+    except Exception:
+        pass
     return out
 
 

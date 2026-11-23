@@ -327,7 +327,7 @@ def _multi_house(area):
 
 
 def parking_required(items, ordinance_div=None, rules=None, manual=None, undefined=None,
-                     law_meta=None, notes=None):
+                     law_meta=None, notes=None, special=None):
     """부설주차장 법정 대수 산술 시나리오(신축).
 
     items: [(규칙키, 수량), ...] — 규칙표(rules)의 키. 수량 단위는 규칙표 참고.
@@ -346,7 +346,7 @@ def parking_required(items, ordinance_div=None, rules=None, manual=None, undefin
     manual_hit = [k for k, _ in items if k in manual]
     if manual_hit:
         return {"status": "UNKNOWN",
-                "reason": "표 제5호 시설물은 「주택건설기준 등에 관한 규정」 제27조로 별도 산정",
+                "reason": "원문이 별도 규정(예: 「주택건설기준 등에 관한 규정」)을 인용하거나 단순 기준이 아니어서 자동 산정하지 않음",
                 "manual_only": [manual[k] for k in manual_hit], "law": meta}
     undef_hit = [k for k, _ in items if k in undefined]
     if undef_hit:
@@ -363,7 +363,9 @@ def parking_required(items, ordinance_div=None, rules=None, manual=None, undefin
             return {"status": "UNKNOWN", "reason": f"수량은 0 이상이어야 함: {key}"}
         no, label, unit, mult, div = rules[key]
         basis = "법령·조례 원문"
-        if key == "단독주택":
+        if special and key in special:
+            v = special[key](q)
+        elif key == "단독주택":
             v = _detached(q)
         elif key == "다중주택":
             v = _multi_house(q)

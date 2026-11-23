@@ -12,6 +12,7 @@ from law_core_v2 import (CORE_PACK_ID, route_laws, preview_area, far_counted_are
                          PARKING_RULES, PARKING_MANUAL_KEYS)
 from ordinance_parse import CANON_ZONES
 from ordinance_regions import zone_limits_for, region_of
+from parking_regions import build as pk_build, parking_required_region, region_data as pk_region_data
 from ordinance_daejeon import (is_daejeon, parking_required_daejeon, DJ_PARKING_RULES,
                                DJ_MANUAL_KEYS, DJ_UNDEFINED_KEYS, DJ_META, DJ_SUNLIGHT_NOTE, dj_sunlight_setback)
 
@@ -158,29 +159,63 @@ if "site_snapshot" in st.session_state:
     addr = st.session_state.get("address", "")
     zl_all = zone_limits_for(addr, st.session_state.get("zones", []))
     with st.expander("부설주차장 산정"):
-        mode_j = st.radio("적용 기준", ["자동(주소 기준)", "대전광역시 조례(별표 6)", "주차장법 시행령 별표 1만"],
+        mode_j = st.radio("적용 기준", ["자동(주소 기준)", "지역 조례(주소 지역)", "주차장법 시행령 별표 1만"],
                           horizontal=True, key="pk_mode")
-        use_dj = (mode_j == "대전광역시 조례(별표 6)") or (mode_j == "자동(주소 기준)" and is_daejeon(addr))
-        if use_dj:
+        pk_region = region_of(addr)
+        use_local = mode_j != "주차장법 시행령 별표 1만"
+        basis = "national"
+        if use_local and pk_region == "대전광역시":
+            basis = "daejeon"
+        elif use_local and pk_region and pk_region_data(pk_region):
+            basis = "region"
+        if use_local and basis == "national":
+            st.info("이 주소 지역의 주차장 조례는 아직 연결되어 있지 않아 주차장법 시행령 별표 1 기준만 계산합니다(조례가 강화·완화할 수 있음).")
+
+        if basis == "daejeon":
             st.caption(f"{DJ_META['parking']['name']} 별표 6 (공포 {DJ_META['parking']['promulgation_no']}, "
                        f"시행 {DJ_META['parking']['effective']}) 기준 신축 산술 시나리오. 용도변경·증축은 반영하지 않습니다.")
             rules, manual, undefined = DJ_PARKING_RULES, DJ_MANUAL_KEYS, DJ_UNDEFINED_KEYS
+            opts = {k: f"{v[0]}호 {v[1]}" for k, v in rules.items()}
+            opts.update({k: f"5호 {v}" for k, v in manual.items()})
+            opts.update({k: f"(자동 산정 불가) {k}" for k in undefined})
+            variant = 0
+        elif basis == "region":
+            pr = pk_region_data(pk_region)
+            o = pr["ordinance"]
+            st.caption(f"{o['name']} 설치기준 별표 (공포 {o['promulgation_no']}, 시행 {o['effective']}) 기준 신축 산술 시나리오. "
+                       "용도변경·증축은 반영하지 않습니다. 공동주택·오피스텔 등 별도 규정을 인용하는 분류는 계산하지 않고 원문 표를 보여줍니다.")
+            variant = 0
+            if pr["columns"]:
+                variant = st.radio("조례 표의 열(대지 구역)", list(range(len(pr["columns"]))), horizontal=True,
+                                   format_func=lambda i: pr["columns"][i], key=f"pk_variant_{pk_region}")
+            rules, manual, special_fn, opts = pk_build(pk_region, variant)
         else:
             st.caption("주차장법 시행령 별표 1 (시행 2026-08-28) 기준 신축 산술 시나리오. 지자체 조례가 강화·완화할 수 있고 "
                        "이 모드는 조례를 반영하지 않습니다.")
             rules, manual, undefined = PARKING_RULES, PARKING_MANUAL_KEYS, {}
-        opts = {k: f"{v[0]}호 {v[1]}" for k, v in rules.items()}
-        opts.update({k: f"5호 {v}" for k, v in manual.items()})
-        opts.update({k: f"(자동 산정 불가) {k}" for k in undefined})
+            opts = {k: f"{v[0]}호 {v[1]}" for k, v in rules.items()}
+            opts.update({k: f"5호 {v}" for k, v in manual.items()})
+            variant = 0
         n = st.number_input("용도 개수", min_value=1, max_value=8, value=1, step=1, key="pk_n")
         pk_items = []
+        tag = f"{basis}_{pk_region}_{variant}"
         for i in range(int(n)):
             c1, c2 = st.columns([3, 1])
-            k = c1.selectbox("용도", list(opts), format_func=opts.get, key=f"pk_k{i}_{int(use_dj)}")
+            k = c1.selectbox("용도", list(opts), format_func=opts.get, key=f"pk_k{i}_{tag}")
             unit = rules[k][2] if k in rules else "해당 없음"
-            q = c2.number_input(unit, min_value=0.0, value=0.0, key=f"pk_q{i}_{int(use_dj)}")
+            q = c2.number_input(unit, min_value=0.0, value=0.0, key=f"pk_q{i}_{tag}")
             pk_items.append((k, q))
-        pk = parking_required_daejeon(pk_items) if use_dj else parking_required(pk_items)
+        if basis == "daejeon":
+            pk = parking_required_daejeon(pk_items)
+        elif basis == "region":
+            pk = parking_required_region(pk_region, pk_items, variant)
+            raw_cats = [c for c in pk_region_data(pk_region)["categories"] if c["kind"] == "manual"
+                        and any(k == c["id"] for k, _ in pk_items)]
+            for c in raw_cats:
+                with st.expander(f"원문 표: {c['no']}. {c['label'][:40]}"):
+                    st.text(c["raw"])
+        else:
+            pk = parking_required(pk_items)
         st.json(pk)
         if pk.get("ambiguous"):
             st.warning("원문이 정하지 않은 부분이 있어 최종 대수를 확정하지 않았습니다. 사유를 확인하세요.")
