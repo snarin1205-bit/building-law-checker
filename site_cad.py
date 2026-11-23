@@ -102,9 +102,34 @@ def _dump(doc):
     return s.getvalue().encode("utf-8")
 
 
-def _tx(epsg):
+class _Shift:
+    """경위도 → 투영좌표에서 (ox, oy) 를 뺀 좌표. offset=(0,0) 이면 절대좌표."""
+
+    def __init__(self, tr, offset=(0.0, 0.0)):
+        self.tr, self.ox, self.oy = tr, offset[0], offset[1]
+
+    def transform(self, lon, lat):
+        x, y = self.tr.transform(lon, lat)
+        return x - self.ox, y - self.oy
+
+
+def _tx(epsg, offset=(0.0, 0.0)):
     from pyproj import Transformer
-    return Transformer.from_crs("EPSG:4326", epsg, always_xy=True)
+    return _Shift(Transformer.from_crs("EPSG:4326", epsg, always_xy=True), offset)
+
+
+def _info(msp, note):
+    """도면 원점·좌표계 안내 문자(정보 레이어, 원점 아래쪽). note=(x, y, 문자열)."""
+    if not note:
+        return
+    x, y, text = note
+    t = msp.add_text(text, dxfattribs={"layer": "정보", "height": 3.0, "style": "KOR"})
+    t.set_placement((x, y), align=ezdxf_align_left())
+
+
+def ezdxf_align_left():
+    from ezdxf.enums import TextEntityAlignment
+    return TextEntityAlignment.LEFT
 
 
 def _add_poly(msp, tr, ring, closed, layer, color=None, width=None):
@@ -135,9 +160,10 @@ def ezdxf_align():
     return TextEntityAlignment.MIDDLE_CENTER
 
 
-def build_cadastral_dxf(parcels, target_pnu, epsg=EPSG):
-    doc = _new_doc({"지적_필지경계": 2, "지적_지번": 7, "대상필지": 1, "대상필지_지번": 1})
-    msp, tr = doc.modelspace(), _tx(epsg)
+def build_cadastral_dxf(parcels, target_pnu, epsg=EPSG, offset=(0.0, 0.0), note=None):
+    doc = _new_doc({"지적_필지경계": 2, "지적_지번": 7, "대상필지": 1, "대상필지_지번": 1, "정보": 8})
+    msp, tr = doc.modelspace(), _tx(epsg, offset)
+    _info(msp, note)
     n = 0
     for f in parcels:
         pr = f.get("properties") or {}
@@ -152,9 +178,10 @@ def build_cadastral_dxf(parcels, target_pnu, epsg=EPSG):
     return _dump(doc), n
 
 
-def build_digital_dxf(buildings, roads, zones, epsg=EPSG):
-    doc = _new_doc({"건물": 5, "건물_층수": 7, "도로": 3, "용도지역": 6, "용도지역_이름": 6})
-    msp, tr = doc.modelspace(), _tx(epsg)
+def build_digital_dxf(buildings, roads, zones, epsg=EPSG, offset=(0.0, 0.0), note=None):
+    doc = _new_doc({"건물": 5, "건물_층수": 7, "도로": 3, "용도지역": 6, "용도지역_이름": 6, "정보": 8})
+    msp, tr = doc.modelspace(), _tx(epsg, offset)
+    _info(msp, note)
     counts = {"건물": 0, "도로": 0, "용도지역": 0}
     for f in buildings:
         pr = f.get("properties") or {}
@@ -183,10 +210,11 @@ def build_digital_dxf(buildings, roads, zones, epsg=EPSG):
     return _dump(doc), counts
 
 
-def export_cad(x, y, pnu, polygon=None, key=None, domain=None, getter=None, margin_m=200, epsg=EPSG):
-    """반환 {"status","cadastral":bytes,"digital":bytes,"epsg","counts","notes":[...],"error"}."""
+def export_cad(x, y, pnu, polygon=None, key=None, domain=None, getter=None, margin_m=200, epsg=EPSG, origin="parcel"):
+    """origin="parcel": 대상 필지 중심을 (0,0,0)으로 이동(기본), "absolute": 투영 절대좌표 그대로.
+    반환 {"status","cadastral":bytes,"digital":bytes,"epsg","origin":{"mode","x","y"},"counts","notes":[...],"error"}."""
     key, domain = _config(key, domain)
-    out = {"status": "ERROR", "cadastral": None, "digital": None, "epsg": epsg, "counts": {}, "notes": [], "error": None}
+    out = {"status": "ERROR", "cadastral": None, "digital": None, "epsg": epsg, "origin": {"mode": origin, "x": 0.0, "y": 0.0}, "counts": {}, "notes": [], "error": None}
     if not key:
         out["error"] = "VWORLD_API_KEY 미설정(CAD 내보내기는 중계 미지원)"
         return out
@@ -210,8 +238,15 @@ def export_cad(x, y, pnu, polygon=None, key=None, domain=None, getter=None, marg
                 if k == "parcels":
                     raise
                 out["notes"].append(f"{layer} 조회 실패 — 해당 레이어 제외({_snippet(str(e), 60)})")
-        out["cadastral"], np_ = build_cadastral_dxf(data["parcels"], pnu, epsg)
-        out["digital"], cnt = build_digital_dxf(data["buildings"], _clip_all(data["roads"], bbox), _clip_all(data["zones"], bbox), epsg)
+        offset, note = (0.0, 0.0), None
+        if origin == "parcel":
+            clon, clat = ((min(lons) + max(lons)) / 2, (min(lats) + max(lats)) / 2) if polygon else (x, y)   # 경계 상자 중심
+            ox, oy = _tx(epsg).transform(clon, clat)
+            offset = (ox, oy)
+            out["origin"].update({"x": ox, "y": oy})
+            note = (-margin_m, -(margin_m + 15), f"ORIGIN(0,0,0) = target parcel center / {epsg} X={ox:.3f} Y={oy:.3f} / unit m. Add X,Y to restore absolute coordinates.")
+        out["cadastral"], np_ = build_cadastral_dxf(data["parcels"], pnu, epsg, offset, note)
+        out["digital"], cnt = build_digital_dxf(data["buildings"], _clip_all(data["roads"], bbox), _clip_all(data["zones"], bbox), epsg, offset, note)
         out["counts"] = {"필지": np_, **cnt}
         out["status"] = "OK"
     except Exception as e:

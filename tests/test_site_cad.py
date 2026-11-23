@@ -75,12 +75,42 @@ class CadTests(unittest.TestCase):
         self.assertEqual(len(read(r["digital"]).audit().errors), 0)
 
     def test_korean_text_and_coordinates_in_meters(self):
-        r = sc.export_cad(LON, LAT, "T", key="k", domain="d", getter=getter())
+        r = sc.export_cad(LON, LAT, "T", key="k", domain="d", getter=getter(), origin="absolute")
         msp = read(r["cadastral"]).modelspace()
         texts = [e.dxf.text for e in msp if e.dxftype() == "TEXT"]
         self.assertIn("31 대", texts)
         xs = [p[0] for e in msp if e.dxftype() == "LWPOLYLINE" for p in e.get_points("xy")]
         self.assertTrue(all(200000 < v < 260000 for v in xs))   # 중부원점 동쪽 약 21km → 약 221,000
+
+    def test_parcel_origin_puts_target_center_at_zero(self):
+        poly_t = BY_LAYER[sc.LAYER_PARCEL][0]["geometry"]["coordinates"][0][0]
+        r = sc.export_cad(LON, LAT, "T", polygon=poly_t, key="k", domain="d", getter=getter())   # 기본 origin=parcel
+        self.assertEqual(r["origin"]["mode"], "parcel")
+        from ezdxf import bbox
+        msp = read(r["cadastral"]).modelspace()
+        tgt = [e for e in msp if e.dxftype() == "LWPOLYLINE" and e.dxf.layer == "대상필지"][0]
+        pts = list(tgt.get_points("xy"))[:-1] if len(list(tgt.get_points("xy"))) > 4 else list(tgt.get_points("xy"))
+        cx = (min(p[0] for p in pts) + max(p[0] for p in pts)) / 2
+        cy = (min(p[1] for p in pts) + max(p[1] for p in pts)) / 2
+        self.assertLess(abs(cx), 0.5)
+        self.assertLess(abs(cy), 0.5)
+        ext = bbox.extents(msp)
+        self.assertLess(max(abs(ext.extmin.x), abs(ext.extmax.x), abs(ext.extmin.y), abs(ext.extmax.y)), 1000)
+        # 되돌리면 절대좌표
+        absr = sc.export_cad(LON, LAT, "T", polygon=poly_t, key="k", domain="d", getter=getter(), origin="absolute")
+        atgt = [e for e in read(absr["cadastral"]).modelspace() if e.dxftype() == "LWPOLYLINE" and e.dxf.layer == "대상필지"][0]
+        ax = list(atgt.get_points("xy"))[0][0]
+        px = list(tgt.get_points("xy"))[0][0]
+        self.assertAlmostEqual(ax - px, r["origin"]["x"], places=2)
+
+    def test_origin_note_is_in_drawing_and_absolute_has_none(self):
+        r = sc.export_cad(LON, LAT, "T", key="k", domain="d", getter=getter())
+        texts = [e.dxf.text for e in read(r["digital"]).modelspace() if e.dxftype() == "TEXT" and e.dxf.layer == "정보"]
+        self.assertEqual(len(texts), 1)
+        self.assertIn("ORIGIN(0,0,0)", texts[0])
+        self.assertIn("EPSG:5186", texts[0])
+        ab = sc.export_cad(LON, LAT, "T", key="k", domain="d", getter=getter(), origin="absolute")
+        self.assertEqual([e for e in read(ab["digital"]).modelspace() if e.dxf.layer == "정보"], [])
 
     def test_zone_is_clipped_to_search_box(self):
         r = sc.export_cad(LON, LAT, "T", polygon=[(LON, LAT), (LON + 0.0002, LAT), (LON + 0.0002, LAT + 0.0002)],
