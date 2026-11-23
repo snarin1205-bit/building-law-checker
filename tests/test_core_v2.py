@@ -2,7 +2,7 @@ import json
 import unittest
 from law_core_v2 import (route_laws, preview_area, classify_zones, far_counted_area,
                          findings_to_markdown, findings_to_json, sort_findings,
-                         parking_required)
+                         parking_required, PARKING_RULES, PARKING_LAW_META)
 
 
 def pri(**kw):
@@ -82,39 +82,70 @@ class CoreV2Tests(unittest.TestCase):
         f = {x.law_group: x for x in route_laws()}
         self.assertTrue(f["건축법·건축법 시행령"].source_url.startswith("https://www.law.go.kr/"))
 
-    # --- parking (기준값은 사용자 입력만 사용) ---
-    def test_parking_requires_basis(self):
-        r = parking_required([("A", 410)])
+    # --- parking: 주차장법 시행령 별표 1 (사본과 대조) ---
+    def test_parking_rules_match_snapshot(self):
+        import pathlib, re
+        snap = (pathlib.Path(__file__).resolve().parent.parent / "data" / "law_snapshots" /
+                "parking_decree_b1_20260828.txt").read_text(encoding="utf-8")
+        flat = re.sub(r"[\s┃│┏┓┗┛━┯┷┠┨┼─]+", "", snap)
+        for key, (no, label, unit, mult, div) in PARKING_RULES.items():
+            if unit == "시설면적㎡" and div:
+                self.assertIn(f"시설면적{div}㎡당1대(시설면적/{div}㎡)", flat, key)
+        for token in ("1홀당10대", "1타석당1대", "정원15명당1대", "정원100명당1대",
+                      "시설면적50㎡초과150㎡이하:1대", "[1+{(시설면적-150㎡)/100㎡}]",
+                      "0.5이상인경우에는이를1로본다"):
+            self.assertIn(token, flat, token)
+        self.assertEqual(PARKING_LAW_META["effective_date"], "2026-08-28")
+
+    def test_parking_basic_half_rule(self):
+        # 기타 300㎡당 1대: 410/300=1.366.. -> 소수 첫째자리 1.3(절사)/1.4(반올림) -> 0.5 미만 -> 1대
+        r = parking_required([("기타", 410)])
+        self.assertEqual(r["count"], 1)
+        # 근생 200㎡당: 700/200 = 3.5 -> 0.5 이상이므로 4대 (올림 아닌 0.5 규칙)
+        self.assertEqual(parking_required([("근생숙박", 700)])["count"], 4)
+        # 699/200 = 3.495 -> 3.4(절사)/3.5(반올림) -> 후보 3, 4 : 확정하지 않음
+        r = parking_required([("근생숙박", 699)])
+        self.assertTrue(r["ambiguous"])
+        self.assertEqual(r["candidates"], [3, 4])
+        self.assertIsNone(r["count"])
+        # 590/200 = 2.95 -> 2.9/3.0 -> 후보 3, 3 => 3 확정
+        self.assertEqual(parking_required([("근생숙박", 590)])["count"], 3)
+
+    def test_parking_not_ceil(self):
+        # 올림이면 3이지만 원문은 0.5 미만 버림: 410/200 = 2.05 -> 2대
+        self.assertEqual(parking_required([("근생숙박", 410)])["count"], 2)
+
+    def test_parking_units(self):
+        self.assertEqual(parking_required([("골프장", 9)])["count"], 90)
+        self.assertEqual(parking_required([("골프연습장", 30)])["count"], 30)
+        self.assertEqual(parking_required([("옥외수영장", 150)])["count"], 10)
+        self.assertEqual(parking_required([("관람장", 1000)])["count"], 10)
+
+    def test_parking_detached_house(self):
+        self.assertEqual(parking_required([("단독주택", 100)])["count"], 1)
+        self.assertEqual(parking_required([("단독주택", 150)])["count"], 1)
+        self.assertEqual(parking_required([("단독주택", 350)])["count"], 3)  # 1+(350-150)/100
+
+    def test_parking_half_to_one_conflict_is_ambiguous(self):
+        r = parking_required([("기타", 150)])  # 0.5대: 본문 1대 vs 단서 0대
+        self.assertTrue(r["ambiguous"])
+        self.assertEqual(r["candidates"], [0, 1])
+
+    def test_parking_housing_is_manual(self):
+        r = parking_required([("다가구공동오피스텔", 1000)])
         self.assertEqual(r["status"], "UNKNOWN")
-        self.assertEqual(r["missing_basis_uses"], ["A"])
+        self.assertEqual(parking_required([("기타", 100), ("다가구공동오피스텔", 1)])["status"], "UNKNOWN")
 
-    def test_parking_ceil_not_floor(self):
-        r = parking_required([("A", 410)], {"A": 200})
-        self.assertEqual(r["status"], "PREVIEW")
-        self.assertEqual(r["selected"], 3)  # 2.05 -> 올림
-
-    def test_parking_rounding_modes_differ(self):
-        items = [("A", 250), ("B", 100)]
-        basis = {"A": 200, "B": 400}  # 1.25 + 0.25
-        r = parking_required(items, basis)
-        self.assertEqual(r["ceil_of_total"], 2)
-        self.assertEqual(r["sum_of_use_ceils"], 3)
-        self.assertTrue(r["rounding_differs"])
-        self.assertEqual(parking_required(items, basis, "per_use")["selected"], 3)
-
-    def test_parking_partial_missing_is_unknown(self):
-        r = parking_required([("A", 100), ("B", 100)], {"A": 100})
-        self.assertEqual(r["status"], "UNKNOWN")
-        self.assertEqual(r["missing_basis_uses"], ["B"])
+    def test_parking_ordinance_override_is_marked(self):
+        r = parking_required([("근생숙박", 400)], {"근생숙박": 134})
+        self.assertEqual(r["rows"][0]["basis"], "조례 입력값(미검증)")
+        self.assertEqual(parking_required([("골프장", 1)], {"골프장": 5})["status"], "UNKNOWN")
 
     def test_parking_invalid_inputs(self):
         self.assertEqual(parking_required([])["status"], "UNKNOWN")
-        self.assertEqual(parking_required([("A", -1)], {"A": 100})["status"], "UNKNOWN")
-        self.assertEqual(parking_required([("A", 100)], {"A": -5})["status"], "UNKNOWN")
-        self.assertEqual(parking_required([("A", 100)], {"A": 100}, "x")["status"], "UNKNOWN")
-
-    def test_parking_float_noise(self):
-        self.assertEqual(parking_required([("A", 600)], {"A": 200})["selected"], 3)
+        self.assertEqual(parking_required([("없는키", 1)])["status"], "UNKNOWN")
+        self.assertEqual(parking_required([("기타", -1)])["status"], "UNKNOWN")
+        self.assertEqual(parking_required([("기타", "abc")])["status"], "UNKNOWN")
 
     def test_north_light_not_asserted_by_zone(self):
         key = "건축법 일조·높이·대지안의 공지"

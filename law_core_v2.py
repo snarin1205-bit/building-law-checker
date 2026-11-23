@@ -235,55 +235,139 @@ def findings_to_json(findings, context=None):
 
 
 # ---------------------------------------------------------------------------
-# 부설주차장 산정 (사전 검토용)
-# 법정 기준값(㎡당 1대)은 코드에 내장하지 않는다. 주차장법 시행령 별표 1과 해당
-# 지자체 조례 원문에서 확인한 값을 사용자가 용도별로 직접 입력해야 계산한다.
+# 부설주차장 산정 — 주차장법 시행령 [별표 1] (공포번호 36623, 시행일 2026-08-28)
+# 원문 사본: data/law_snapshots/parking_decree_b1_20260828.txt (테스트가 코드와 대조)
+# 범위: 신축 기준의 산술 시나리오. 용도변경·증축(비고 5·7), 조례 강화/완화(비고 11),
+#       장애인전용구획(비고 10), 경형자동차 인정(비고 12) 등은 계산하지 않는다.
 # ---------------------------------------------------------------------------
-def parking_required(items, sqm_per_space=None, rounding="total"):
-    """용도별 (시설면적 / 입력 기준값) 산술 시나리오. 기준값 미입력 용도는 계산하지 않는다.
+from fractions import Fraction
 
-    items: [(용도명, 시설면적㎡), ...]
-    sqm_per_space: {용도명: 원문·조례에서 확인한 '㎡당 1대' 값}
-    rounding: 'total'(합산 후 올림) | 'per_use'(용도별 올림 후 합산). 끝수 처리 규정은
-              원문 확인 전이므로 두 방식 값을 모두 반환하고 selected만 선택값이다.
+PARKING_LAW_META = {
+    "law": "주차장법 시행령 [별표 1]", "promulgation_no": "36623",
+    "effective_date": "2026-08-28", "mst": "288729",
+    "snapshot": "data/law_snapshots/parking_decree_b1_20260828.txt",
+}
+
+# key: (표 호수, 표시명, 수량 단위, 곱, 나눔) → 대수 = 수량 × 곱 / 나눔 (원문 '시설면적/100㎡' 등)
+PARKING_RULES = {
+    "위락": (1, "위락시설", "시설면적㎡", 1, 100),
+    "문화집회등": (2, "문화 및 집회시설(관람장 제외)·종교·판매·운수·의료(정신병원·요양병원·격리병원 제외)·"
+               "운동(골프장·골프연습장·옥외수영장 제외)·업무(외국공관·오피스텔 제외)·방송통신 중 방송국·장례식장",
+               "시설면적㎡", 1, 150),
+    "근생숙박": (3, "제1종 근린생활시설(원문 제외분 제외)·제2종 근린생활시설·숙박시설", "시설면적㎡", 1, 200),
+    "단독주택": (4, "단독주택(다가구주택 제외)", "시설면적㎡", None, None),
+    "골프장": (6, "골프장", "홀 수", 10, 1),
+    "골프연습장": (6, "골프연습장", "타석 수", 1, 1),
+    "옥외수영장": (6, "옥외수영장", "정원(명)", 1, 15),
+    "관람장": (6, "관람장", "정원(명)", 1, 100),
+    "수련공장발전": (7, "수련시설·공장(아파트형 제외)·발전시설", "시설면적㎡", 1, 350),
+    "창고": (8, "창고시설", "시설면적㎡", 1, 400),
+    "학생용기숙사": (9, "학생용 기숙사", "시설면적㎡", 1, 400),
+    "데이터센터": (10, "방송통신시설 중 데이터센터", "시설면적㎡", 1, 400),
+    "기타": (11, "그 밖의 건축물", "시설면적㎡", 1, 300),
+}
+# 표 제5호: 「주택건설기준 등에 관한 규정」 제27조에 따른 대수 — 이 모듈은 산정하지 않는다.
+PARKING_MANUAL_KEYS = {"다가구공동오피스텔": "다가구주택·공동주택(기숙사 제외)·업무시설 중 오피스텔 (표 제5호)"}
+
+
+def _frac(x):
+    return Fraction(str(x))
+
+
+def _detached(area):
+    """표 제4호 + 비고 4 단서. 50㎡ 이하는 비고 4 단서의 '면적/100㎡'를 적용(원문상 복합시설
+    맥락의 단서이므로 해석 확인 필요)."""
+    if area <= 50:
+        return area / 100
+    if area <= 150:
+        return Fraction(1)
+    return 1 + (area - 150) / 100
+
+
+def _trunc1(v):
+    return Fraction(math.floor(v * 10), 10)
+
+
+def _round1(v):  # 0.05 이상은 올림(사사오입) — 원문이 방식을 정하지 않아 후보로만 사용
+    return Fraction(math.floor(v * 10 + Fraction(1, 2)), 10)
+
+
+def _final(sum_value):
+    """비고 6: 소수점 이하가 0.5 이상이면 1로 본다."""
+    n = math.floor(sum_value)
+    return n + (1 if sum_value - n >= Fraction(1, 2) else 0)
+
+
+def parking_required(items, ordinance_div=None):
+    """부설주차장 법정 대수 산술 시나리오(신축).
+
+    items: [(규칙키, 수량), ...] — PARKING_RULES 키. 수량 단위는 PARKING_RULES 참고.
+    ordinance_div: {규칙키: 조례로 확인한 나눔값} 로 시설면적 기준(area kind)을 대체(비고 11).
+    원문이 정하지 않은 부분(소수 첫째자리 처리 방식, 0.5~1대 구간)은 후보값을 모두 반환하고
+    확정하지 않는다(count=None, ambiguous=True).
     """
-    sqm_per_space = sqm_per_space or {}
-    if rounding not in ("total", "per_use"):
-        return {"status": "UNKNOWN", "reason": "rounding은 total 또는 per_use"}
+    ordinance_div = ordinance_div or {}
     if not items:
-        return {"status": "UNKNOWN", "reason": "용도·시설면적 입력 없음"}
-    rows, missing = [], []
-    for use, area in items:
-        try:
-            a = float(area)
-        except (TypeError, ValueError):
-            return {"status": "UNKNOWN", "reason": f"면적 입력 오류: {use}"}
-        if not math.isfinite(a) or a < 0:
-            return {"status": "UNKNOWN", "reason": f"면적은 0 이상이어야 함: {use}"}
-        if use not in sqm_per_space or sqm_per_space[use] in (None, "", 0):
-            missing.append(use)
-            continue
-        try:
-            base = float(sqm_per_space[use])
-        except (TypeError, ValueError):
-            return {"status": "UNKNOWN", "reason": f"기준값 입력 오류: {use}"}
-        if not math.isfinite(base) or base <= 0:
-            return {"status": "UNKNOWN", "reason": f"기준값은 양수여야 함: {use}"}
-        exact = a / base
-        rows.append({"use": use, "area_m2": round(a, 2), "sqm_per_space": base,
-                     "exact": round(exact, 4), "ceil": math.ceil(round(exact, 6))})
-    if missing:
+        return {"status": "UNKNOWN", "reason": "용도·수량 입력 없음"}
+    manual = [k for k, _ in items if k in PARKING_MANUAL_KEYS]
+    if manual:
         return {"status": "UNKNOWN",
-                "reason": "기준값 미입력 용도 있음 — 주차장법 시행령 별표 1·지자체 조례 원문에서 확인 후 입력",
-                "missing_basis_uses": missing, "computed_partial": rows,
-                "source_url": LAW_URLS["주차장법"]}
-    exact_total = sum(r["exact"] for r in rows)
-    total_ceil = math.ceil(round(exact_total, 6))
-    per_use_ceil = sum(r["ceil"] for r in rows)
+                "reason": "표 제5호 시설물은 「주택건설기준 등에 관한 규정」 제27조로 별도 산정(비고 4: 별도 합산)",
+                "manual_only": [PARKING_MANUAL_KEYS[k] for k in manual],
+                "law": PARKING_LAW_META}
+    rows = []
+    for key, qty in items:
+        if key not in PARKING_RULES:
+            return {"status": "UNKNOWN", "reason": f"알 수 없는 용도 키: {key}"}
+        try:
+            q = _frac(qty)
+        except (ValueError, TypeError):
+            return {"status": "UNKNOWN", "reason": f"수량 입력 오류: {key}"}
+        if q < 0:
+            return {"status": "UNKNOWN", "reason": f"수량은 0 이상이어야 함: {key}"}
+        no, label, unit, mult, div = PARKING_RULES[key]
+        basis = "법령 원문"
+        if key == "단독주택":
+            v = _detached(q)
+        else:
+            if key in ordinance_div:
+                try:
+                    div = _frac(ordinance_div[key])
+                except (ValueError, TypeError):
+                    return {"status": "UNKNOWN", "reason": f"조례 기준 입력 오류: {key}"}
+                if div <= 0 or unit != "시설면적㎡":
+                    return {"status": "UNKNOWN", "reason": f"조례 기준은 시설면적 기준 용도의 양수만 허용: {key}"}
+                basis = "조례 입력값(미검증)"
+            v = q * mult / div
+        rows.append({"table_no": no, "use": label, "quantity": float(q), "unit": unit,
+                     "exact": float(v), "basis": basis, "_v": v})
+    # 비고 4: 용도별로 소수점 이하 첫째자리까지 산정한 대수를 합산 (처리 방식은 원문 미정 → 후보 2개)
+    sums = {"절사": sum((_trunc1(r["_v"]) for r in rows), Fraction(0)),
+            "반올림": sum((_round1(r["_v"]) for r in rows), Fraction(0))}
+    candidates, reasons = set(), []
+    for name, sm in sums.items():
+        f = _final(sm)
+        if sm < 1:
+            # 비고 6 단서(총주차대수 1대 미만이면 0)와 0.5 이상 1로 보는 본문이 0.5~1 구간에서 충돌 가능
+            if sm >= Fraction(1, 2):
+                candidates.update({0, 1})
+                reasons.append("합계가 0.5 이상 1 미만: 비고 6 본문(→1대)과 단서(1대 미만→0)의 적용 확인 필요")
+            else:
+                candidates.add(0)
+        else:
+            candidates.add(f)
+    for r in rows:
+        r.pop("_v")
+    ordered = sorted(candidates)
+    ambiguous = len(ordered) > 1
+    if sums["절사"] != sums["반올림"] and not ambiguous:
+        pass  # 처리 방식이 달라도 최종 대수가 같으면 영향 없음
+    elif ambiguous and not reasons:
+        reasons.append("용도별 소수 첫째자리 처리 방식(절사/반올림)에 따라 최종 대수가 달라짐 — 원문이 방식을 정하지 않음")
     return {"status": "PREVIEW", "rows": rows,
-            "exact_total": round(exact_total, 4),
-            "ceil_of_total": total_ceil, "sum_of_use_ceils": per_use_ceil,
-            "selected": total_ceil if rounding == "total" else per_use_ceil,
-            "rounding_differs": total_ceil != per_use_ceil,
-            "reason": "입력 기준값의 출처·시행일, 끝수 처리, 주차산정면적 범위는 원문으로 확인 필요",
-            "source_url": LAW_URLS["주차장법"]}
+            "sum_one_decimal": {k: float(v) for k, v in sums.items()},
+            "candidates": ordered, "ambiguous": ambiguous,
+            "count": None if ambiguous else ordered[0],
+            "ambiguity_reasons": reasons,
+            "scope": "신축 산술 시나리오. 조례(비고 11), 용도변경·증축(비고 5·7), 장애인전용(비고 10) 등 미반영",
+            "law": PARKING_LAW_META, "source_url": LAW_URLS["주차장법"]}
