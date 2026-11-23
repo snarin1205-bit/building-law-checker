@@ -32,8 +32,8 @@ def _cad(x, y, pnu, origin, margin):
 
 
 @st.cache_data(show_spinner="수치지도(국토지리정보원) CAD를 만드는 중...", ttl=600)
-def _ngii(x, y, origin, margin, stamp):
-    return ngii_dxf.export_ngii(x, y, parcel_polygon(x, y), origin=origin, margin_m=margin)
+def _ngii(x, y, origin, margin, stamp, symbols, text):
+    return ngii_dxf.export_ngii(x, y, parcel_polygon(x, y), origin=origin, margin_m=margin, include_symbols=symbols, include_text=text)
 
 
 st.set_page_config(page_title="현상설계 법규 분석 v2", page_icon="🏛️", layout="wide")
@@ -175,10 +175,13 @@ if submitted:
             if map_pnu:
                 _mode = st.radio("CAD 좌표", ["대상 필지 중심을 (0,0,0) 원점으로", "중부원점 절대좌표(EPSG:5186)"], horizontal=True, key="cad_origin")
                 _margin = st.select_slider("CAD 범위 — 대상 필지 경계에서 바깥으로(m)", options=[100, 200, 300, 500], value=200, key="cad_margin")
+                _k1, _k2 = st.columns(2)
+                _sym = _k1.checkbox("수치지도에 기호(아이콘: 논·학교·수목 표시 등) 포함", value=False, key="ngii_symbols")
+                _txt = _k2.checkbox("수치지도에 문자(표고·지명·건물명) 포함", value=True, key="ngii_text")
                 _origin = "parcel" if _mode.startswith("대상") else "absolute"
                 cd = _cad(map_xy[0], map_xy[1], map_pnu, _origin, _margin)
                 if cd["status"] == "OK":
-                    _ng = _ngii(map_xy[0], map_xy[1], cd["origin"]["mode"], _margin, st.session_state.get("ngii_stamp", 0))
+                    _ng = _ngii(map_xy[0], map_xy[1], cd["origin"]["mode"], _margin, st.session_state.get("ngii_stamp", 0), _sym, _txt)
                     c1, c2, c3 = st.columns(3)
                     c1.download_button("지적도 CAD(.dxf)", cd["cadastral"], file_name="cadastral.dxf", mime="application/dxf")
                     if _ng["status"] == "OK":
@@ -191,7 +194,7 @@ if submitted:
                     for note in cd["notes"]:
                         st.warning(note)
                     if _ng["status"] == "OK":
-                        st.caption(f"국토지리정보원 수치지형도(도엽 {', '.join(_ng['sheets'])})에서 필지 경계 바깥 {_margin}m 안의 도형 {_ng['count']:,}개를 잘라 담았습니다. 레이어는 원본 그대로입니다. 출처: 국토지리정보원.")
+                        st.caption(f"국토지리정보원 수치지형도(도엽 {', '.join(_ng['sheets'])})에서 필지 경계 바깥 {_margin}m 안의 도형 {_ng['count']:,}개를 잘라 담았습니다. 레이어는 원본 그대로입니다. 제외한 기호 {_ng['stats'].get('symbols_skipped', 0):,}개 · 문자 {_ng['stats'].get('text_skipped', 0):,}개. 출처: 국토지리정보원.")
                     elif _ng["status"] == "NO_SHEET":
                         st.info("이 지역의 국토지리정보원 수치지도 도엽이 저장돼 있지 않습니다. 왼쪽 사이드바에서 국토정보플랫폼 1:5,000 DXF 도엽을 올리면 이 위치도 CAD로 받을 수 있습니다.")
                     elif _ng["status"] == "EMPTY":

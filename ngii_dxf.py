@@ -149,8 +149,12 @@ def clip_pieces(points, closed, window):
     return out
 
 
-def clip_to_dxf(sheet_names, window, origin_xy=(0.0, 0.0), note=None):
-    """저장 도엽에서 창과 겹치는 도형을 새 DXF 로 복사하고 origin_xy 를 빼서 이동. 반환 (bytes, 복사한 도형 수)."""
+def clip_to_dxf(sheet_names, window, origin_xy=(0.0, 0.0), note=None, include_symbols=False, include_text=True, stats=None):
+    """저장 도엽에서 창과 겹치는 도형을 새 DXF 로 복사하고 origin_xy 를 빼서 이동. 반환 (bytes, 복사한 도형 수).
+    include_symbols=False: 점 기호(INSERT 블록·POINT — 논·학교·수목 표시 등 아이콘)를 빼고 선·면 도형만 담는다.
+    include_text=False: 문자(표고·지명·건물명 주기)를 뺀다. stats 딕셔너리를 주면 {"symbols_skipped","text_skipped"} 를 채운다."""
+    stats = stats if stats is not None else {}
+    stats.update({"symbols_skipped": 0, "text_skipped": 0})
     import ezdxf
     from ezdxf import bbox as eb
     from ezdxf.addons.importer import Importer
@@ -165,8 +169,15 @@ def clip_to_dxf(sheet_names, window, origin_xy=(0.0, 0.0), note=None):
         for e in src.modelspace():
             t = e.dxftype()
             if t in _POINT_TYPES:               # 기호·문자는 기준점이 창 안에 있을 때만
-                if _inside(_pos(e), window):
-                    picked.append(e)
+                if not _inside(_pos(e), window):
+                    continue
+                if t in ("INSERT", "POINT") and not include_symbols:
+                    stats["symbols_skipped"] += 1
+                    continue
+                if t in ("TEXT", "MTEXT") and not include_text:
+                    stats["text_skipped"] += 1
+                    continue
+                picked.append(e)
                 continue
             if t in ("LWPOLYLINE", "LINE", "POLYLINE"):   # 선은 창 경계에서 잘라 필요한 부분만
                 try:
@@ -224,9 +235,9 @@ def clip_to_dxf(sheet_names, window, origin_xy=(0.0, 0.0), note=None):
     return s.getvalue().encode("utf-8"), n
 
 
-def export_ngii(x, y, polygon=None, margin_m=200, epsg="EPSG:5186", origin="parcel"):
+def export_ngii(x, y, polygon=None, margin_m=200, epsg="EPSG:5186", origin="parcel", include_symbols=False, include_text=True):
     """주소 좌표(경위도)로 저장 도엽에서 CAD 생성. 반환 {"status": "OK"|"NO_SHEET"|"EMPTY"|"ERROR", "dxf", "sheets", "count", "origin", "error"}."""
-    out = {"status": "ERROR", "dxf": None, "sheets": [], "count": 0, "origin": {"mode": origin, "x": 0.0, "y": 0.0}, "error": None}
+    out = {"status": "ERROR", "dxf": None, "sheets": [], "count": 0, "origin": {"mode": origin, "x": 0.0, "y": 0.0}, "stats": {}, "error": None}
     try:
         from site_cad import _tx, margin_deg
         lons = [p[0] for p in polygon] if polygon else [x]
@@ -245,8 +256,9 @@ def export_ngii(x, y, polygon=None, margin_m=200, epsg="EPSG:5186", origin="parc
             off = ((min(p[0] for p in pts) + max(p[0] for p in pts)) / 2, (min(p[1] for p in pts) + max(p[1] for p in pts)) / 2)
             out["origin"].update({"x": off[0], "y": off[1]})
             note = (-margin_m, -(margin_m + 15), f"ORIGIN(0,0,0) = target parcel center / {epsg} X={off[0]:.3f} Y={off[1]:.3f} / unit m. Add X,Y to restore absolute coordinates.")
-        data, n = clip_to_dxf(sheets, window, off, note)
-        out.update({"sheets": sheets, "count": n, "dxf": data, "status": "OK" if n else "EMPTY"})
+        st = {}
+        data, n = clip_to_dxf(sheets, window, off, note, include_symbols, include_text, st)
+        out.update({"sheets": sheets, "count": n, "dxf": data, "stats": st, "status": "OK" if n else "EMPTY"})
     except Exception as e:
         out["error"] = f"수치지도 CAD 생성 실패({type(e).__name__})"
     return out
