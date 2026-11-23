@@ -18,12 +18,14 @@
 """
 
 import requests
+import os
 import sys
 
 # ──────────────────────────────────────────────
 # API 키
 # ──────────────────────────────────────────────
-LAND_API_KEY = "6F8D2670-8C8E-3958-AE79-9645DCE6BB0F"
+LAND_API_KEY = os.getenv("VWORLD_API_KEY", "")
+LAND_API_DOMAIN = os.getenv("VWORLD_DOMAIN", "localhost:8501")
 
 # ──────────────────────────────────────────────
 # 터미널 색상
@@ -388,7 +390,7 @@ def get_coordinates(address: str):
         try:
             r = requests.get(url, params={
                 "service": "address", "request": "getcoord",
-                "key": LAND_API_KEY, "address": address,
+                "key": LAND_API_KEY, "domain": LAND_API_DOMAIN, "address": address,
                 "type": addr_type, "format": "json"
             }, timeout=10)
             pt = r.json()["response"]["result"]["point"]
@@ -402,7 +404,7 @@ def get_land_use(x, y):
     try:
         r = requests.get("https://api.vworld.kr/req/data", params={
             "service": "data", "request": "GetFeature",
-            "data": "LT_C_UQ111", "key": LAND_API_KEY,
+            "data": "LT_C_UQ111", "key": LAND_API_KEY, "domain": LAND_API_DOMAIN,
             "geomFilter": f"POINT({x} {y})",
             "geometry": "false", "attribute": "true",
             "format": "json", "size": "10"
@@ -417,7 +419,7 @@ def get_district_plan(x, y):
     try:
         r = requests.get("https://api.vworld.kr/req/data", params={
             "service": "data", "request": "GetFeature",
-            "data": "LT_C_UQ112", "key": LAND_API_KEY,
+            "data": "LT_C_UQ112", "key": LAND_API_KEY, "domain": LAND_API_DOMAIN,
             "geomFilter": f"POINT({x} {y})",
             "geometry": "false", "attribute": "true",
             "format": "json", "size": "10"
