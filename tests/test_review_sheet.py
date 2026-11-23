@@ -250,5 +250,42 @@ class NoSilentSubstitution(unittest.TestCase):
         self.assertNotIn("넘음", ok.notes[0])
 
 
+class ReferenceFormatRows(unittest.TestCase):
+    DJ = dict(address="대전광역시 서구 둔산로 100", zones=("중심상업지역",), use="업무시설", site_area=1000.0)
+
+    def test_road_and_structure_snapshots(self):
+        r = flat("data/law_snapshots/bldg_decree_art28_road_20261112.txt")
+        self.assertIn("연면적의합계가2천제곱미터(공장인경우에는3천제곱미터)이상", r)
+        self.assertIn("너비6미터이상의도로에4미터이상접하여야한다", r)
+        c = flat("data/law_snapshots/bldg_decree_art32_structure_20261112.txt")
+        for tok in ("층수가2층", "연면적이200제곱미터", "높이가13미터이상", "처마높이가9미터이상", "10미터이상인건축물"):
+            self.assertIn(tok, c, tok)
+
+    def test_road_threshold(self):
+        f = lambda fa, use="업무시설": rows_by_item(build_review(ReviewInput(**{**self.DJ, "use": use, "total_floor_area": fa})))["대지와 도로와의 관계"].applied
+        self.assertIn("6m 이상 도로", f(2000.0))
+        self.assertIn("비대상", f(1999.0))
+        self.assertIn("비대상", f(2500.0, "공장"))   # 공장은 3,000㎡
+        self.assertIn("6m 이상 도로", f(3000.0, "공장"))
+
+    def test_plan_judgement(self):
+        rows = rows_by_item(build_review(ReviewInput(**self.DJ, total_floor_area=13000.0, planned_building_area=800.0, planned_parking=130)))
+        self.assertIn("→ 적합", rows["건폐율 → 최대 건축면적"].applied)
+        self.assertIn("→ 적합", rows["부설주차장 법정 대수"].applied)
+        rows = rows_by_item(build_review(ReviewInput(**self.DJ, total_floor_area=13000.0, planned_building_area=801.0, planned_parking=129)))
+        self.assertIn("초과(부적합)", rows["건폐율 → 최대 건축면적"].applied)
+        self.assertIn("부족(1대)", rows["부설주차장 법정 대수"].applied)
+
+    def test_guideline_parking_uses_larger_value(self):
+        rows = rows_by_item(build_review(ReviewInput(**self.DJ, total_floor_area=13000.0, planned_parking=135, guideline_parking=140)))
+        p = rows["부설주차장 법정 대수"]
+        self.assertIn("공모지침 법정 140대", p.applied)
+        self.assertIn("부족(5대)", p.applied)
+
+    def test_markdown_uses_reference_columns(self):
+        md = review_to_markdown(build_review(ReviewInput(**self.DJ, total_floor_area=13000.0)))
+        self.assertIn("| 법규명 및 조항 | 대상 | 법적 기준 |", md)
+
+
 if __name__ == "__main__":
     unittest.main()

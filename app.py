@@ -5,7 +5,7 @@ This app is for early design-stage screening, not permitting conclusions.
 """
 import streamlit as st
 from building_law_checker import LAND_API_KEY
-from vworld_client import geocode, lookup_zones, lookup_district_plan, relay_configured
+from vworld_client import lookup_site, relay_configured
 from law_core_v2 import (CORE_PACK_ID, route_laws, preview_area, far_counted_area,
                          FAR_EXCLUSION_KEYS, sort_findings, findings_to_markdown,
                          findings_to_json, parking_required,
@@ -29,7 +29,7 @@ with st.form("site_form"):
     with left:
         address = st.text_input("주소/지번", placeholder="예: 대전광역시 유성구 ...")
         building_use = st.selectbox("건축물 주용도 (건축법 시행령 별표 1)", USE_LABELS)
-        site_area = st.number_input("대지면적 (㎡)", min_value=0.0, value=0.0)
+        site_area = st.number_input("대지면적 (㎡) — 비우면 토지대장 면적 사용", min_value=0.0, value=0.0)
         is_public = st.checkbox("공공건축물")
         total_floor = st.number_input("계획 연면적 (㎡) — 비우면 용적률 상한 기준으로 가정", min_value=0.0, value=0.0)
     with right:
@@ -38,6 +38,8 @@ with st.form("site_form"):
                                    ["자동 조회 결과 사용"] + list(CANON_ZONES))
         district_choice = st.selectbox("지구단위계획 적용 여부(수동 확인)", ["미확인", "적용", "비적용"])
         covered = st.number_input("계획 건축면적 (㎡)", min_value=0.0, value=0.0)
+        planned_parking = st.number_input("계획 주차대수 (대, 설계안)", min_value=0, value=0, step=1)
+        guide_parking = st.number_input("공모지침의 법정 주차대수 (대, 있으면)", min_value=0, value=0, step=1)
         far_area = st.number_input("용적률 산정용 연면적 (㎡, 검토값)", min_value=0.0, value=0.0)
         use_floor = st.number_input("해당 용도 바닥면적 합계 (㎡) — 비우면 연면적", min_value=0.0, value=0.0)
         typical_floor = st.number_input("3층 이상 대표층의 거실 바닥면적 (㎡) — 직통계단 판정용", min_value=0.0, value=0.0)
@@ -47,37 +49,52 @@ with st.form("site_form"):
 if submitted:
     district = {"미확인": None, "적용": True, "비적용": False}[district_choice]
     zones = []
+    parcel_area = None
+    parcel_jimok = None
     st.subheader("1. 기본 자료 확인")
     if not LAND_API_KEY and not relay_configured():
         st.error("VWORLD_API_KEY(또는 중계 설정 VWORLD_RELAY_URL/TOKEN)가 없어 주소·용도지역 조회를 건너뜁니다. 모든 대지 조건은 미확인 처리됩니다.")
     elif address.strip():
         st.write(f"입력 주소: {address}")
         try:
-            gc = geocode(address.strip())
-            x, y = gc["x"], gc["y"]
-            if gc["status"] == "ERROR":
-                st.warning(f"주소 좌표 조회 실패: {gc['error']} — 용도지역/지구단위계획은 미확인으로 처리합니다.")
-            elif gc["status"] == "NOT_FOUND":
-                st.warning("주소를 찾지 못했습니다(지번·도로명 모두 결과 없음). 주소 표기를 확인하세요. 용도지역/지구단위계획은 미확인으로 처리합니다.")
+            site = lookup_site(address.strip())
+            g, pc, ld, zr, pr = site["geocode"], site["parcel"], site["land"], site["zones"], site["plan"]
+            if g["status"] == "ERROR":
+                st.warning(f"주소 좌표 조회 실패: {g['error']} — 용도지역·대지면적은 미확인으로 처리합니다.")
+            elif g["status"] == "NOT_FOUND":
+                st.warning("주소를 찾지 못했습니다(지번·도로명 모두 결과 없음). 주소 표기를 확인하세요.")
             else:
-                zr = lookup_zones(x, y)
-                pr = lookup_district_plan(x, y)
-                zones = zr["names"]
-                plans = pr["names"]
-                if zr["status"] == "ERROR":
-                    st.warning(f"용도지역 조회 실패: {zr['error']} — 용도지역은 미확인으로 처리합니다.")
-                elif zr["status"] == "NOT_FOUND":
-                    st.write("VWorld 용도지역 조회: 조회는 되었으나 해당 지점의 용도지역 데이터 없음 (미확인으로 처리)")
+                if pc["status"] == "OK":
+                    st.success(f"조회된 필지: {pc['addr']} (PNU {pc['pnu']}) — 입력한 주소와 같은 필지인지 확인하세요.")
+                elif pc["status"] == "ERROR":
+                    st.warning(f"필지 조회 실패: {pc['error']}")
                 else:
-                    st.write("VWorld 용도지역 조회:", ", ".join(zones))
+                    st.write("필지(연속지적도) 조회: 해당 지점에 필지 데이터 없음")
+                if ld and ld["status"] == "OK":
+                    parcel_area = ld["area"]
+                    parcel_jimok = ld["jimok"]
+                    st.write(f"토지대장: 지목 {ld['jimok']} · 면적 {ld['area']:,.1f}㎡ ({ld['year']}년 기준)")
+                elif ld and ld["status"] == "ERROR":
+                    st.warning(f"토지대장 조회 실패: {ld['error']} — 대지면적을 직접 입력하세요.")
+                pz = list(zr["names"]) if zr and zr["status"] == "OK" else []
+                lz = list(ld["zones"]) if ld and ld["status"] == "OK" else []
+                if zr and zr["status"] == "ERROR":
+                    st.warning(f"용도지역 조회 실패: {zr['error']}")
+                zones = pz + [z for z in lz if z not in pz]
+                if zones:
+                    st.write("용도지역(점 조회 + 토지대장 합산):", ", ".join(zones))
+                    if len(zones) > 1:
+                        st.warning("필지가 둘 이상의 용도지역에 걸치거나 조회 결과가 서로 다릅니다. 건폐율·용적률은 자동 계산하지 않으니 토지이용계획확인서와 면적 비율로 확인하세요.")
+                else:
+                    st.write("용도지역: 조회된 데이터 없음 (미확인으로 처리)")
                 if pr["status"] == "ERROR":
                     st.warning(f"지구단위계획 조회 실패: {pr['error']} — 미확인으로 처리합니다.")
                 elif pr["status"] == "NOT_FOUND":
-                    st.write("VWorld 지구단위계획구역 조회: 해당 지점에 구역 데이터 없음 (법적 '비적용' 확정은 아님, 결정도서 확인)")
+                    st.write("지구단위계획구역 조회: 해당 지점에 구역 데이터 없음 (법적 '비적용' 확정은 아님, 결정도서 확인)")
                 else:
-                    st.write("VWorld 지구단위계획구역 조회:", ", ".join(plans))
-                if district is None and plans:
-                    district = True
+                    st.write("지구단위계획구역:", ", ".join(pr["names"]))
+                    if district is None:
+                        district = True
         except Exception:
             zones = []
             st.warning("외부 API 응답 확인 실패: 모든 미확정 항목은 확인 필요로 처리")
@@ -91,10 +108,33 @@ if submitted:
             st.info(f"자동 조회가 되지 않아 직접 선택한 용도지역({manual_zone})을 사용합니다 — 토지이용계획확인서로 확인하세요.")
         zones = [manual_zone]
 
+    if not site_area and parcel_area:
+        site_area = parcel_area
+        st.info(f"대지면적을 입력하지 않아 토지대장 면적 {parcel_area:,.1f}㎡를 사용합니다. 대장 면적은 건축법상 대지면적(도로 편입·공공용지 제외 등)과 다를 수 있습니다.")
+    st.subheader("1-1. 대지 개요 · 건폐율 · 용적률 (1단계 요약)")
+    _zl = zone_limits_for(address, zones) if zones else {"status": "NO_ZONE", "matches": []}
+    if _zl["status"] == "NO_REGION":
+        st.info("이 지역의 도시계획 조례가 연결되어 있지 않아 건폐율·용적률을 표시하지 못합니다(미연결).")
+    elif not site_area:
+        st.info("대지면적을 알 수 없어 최대 건축면적·연면적을 계산하지 못합니다. 대지면적을 입력하세요.")
+    rows1 = []
+    for m in _zl.get("matches", []):
+        cv, fr = m["coverage_max_pct"], m["far_max_pct"]
+        rows1.append({"주소(필지)": address, "지목": parcel_jimok or "-", "대지면적(㎡)": f"{site_area:,.1f}" if site_area else "-",
+                      "용도지역": m["zone"], "건폐율 상한": f"{cv}%" if cv is not None else "미확인", "용적률 상한": f"{fr}%" if fr is not None else "미확인",
+                      "최대 건축면적(㎡)": f"{site_area*cv/100:,.1f}" if site_area and cv is not None else "-",
+                      "최대 연면적(㎡)": f"{site_area*fr/100:,.1f}" if site_area and fr is not None else "-"})
+    if rows1:
+        st.table(rows1)
+        if len(rows1) > 1:
+            st.caption("용도지역이 둘 이상이면 각 값은 '대지 전체가 그 용도지역일 때'의 참고 수치입니다. 실제 값은 걸친 면적 비율로 가중해야 합니다(법규검토서에서는 자동 계산하지 않음).")
+        st.caption("조례 상한값(이하)이며 지구단위계획·정비구역·용도지구 특례는 반영되지 않습니다.")
     rin = ReviewInput(address=address, zones=tuple(zones), use=building_use, site_area=site_area or None,
                       total_floor_area=total_floor or None, use_floor_area=use_floor or None,
                       typical_floor_area=typical_floor or None, basement_floor_area=basement_floor or None,
-                      is_public=is_public, has_district_plan=district)
+                      is_public=is_public, has_district_plan=district,
+                      planned_building_area=covered or None, planned_parking=planned_parking or None,
+                      guideline_parking=guide_parking or None)
     review_rows = build_review(rin)
     st.subheader("2. 법규검토서 — 이 대지에서 지켜야 할 기준")
     vals = summary_values(review_rows)
@@ -104,7 +144,7 @@ if submitted:
             c.metric(label, f"{v:,.0f}" if float(v).is_integer() else f"{v:,.1f}")
         if not total_floor and "max_floor_area" in vals:
             st.caption("연면적을 입력하지 않아 주차·조경·방화구획은 **용적률 상한 기준 최대 연면적을 가정**해 계산했습니다(상태: 조건부).")
-    st.table([{"구분": r.section, "항목": r.item, "근거": r.basis, "기준": r.standard, "이 대지 적용값": r.applied,
+    st.table([{"구분": r.section, "법규명 및 조항": r.basis, "대상": r.item, "법적 기준": r.standard, "설계기준(이 대지 적용·계획)": r.applied,
                "설계 영향": r.impact, "상태": r.status} for r in review_rows])
     st.caption("상태: 확정(원문+입력으로 결정) · 조건부(가정·추가 확인 필요) · 미확인(입력 부족) · 미연결(해당 법규 데이터 없음 — 직접 확인)")
     sel = st.selectbox("항목별 비고·근거 원문 보기", [f"{r.section} · {r.item}" for r in review_rows], key="review_sel")

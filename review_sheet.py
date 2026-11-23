@@ -120,6 +120,9 @@ class ReviewInput:
     is_public: bool = False
     has_district_plan: Optional[bool] = None
     parking_variant: int = 0
+    planned_building_area: Optional[float] = None  # 계획 건축면적(설계안)
+    planned_parking: Optional[int] = None          # 계획 주차대수(설계안)
+    guideline_parking: Optional[int] = None        # 공모지침이 제시한 법정 주차대수(있으면 지침값을 함께 비교)
 
 
 def pick_parking(rules, spec, is_public=False):
@@ -237,6 +240,10 @@ def build_review(inp: ReviewInput):
                 note.append("조문 단서: " + m["note"])
             note.append("상한값(이하) — 지구단위계획·정비구역·시장정비사업구역 등 특례와 용도지구별 비율은 별도 확인")
             st = "확정" if inp.site_area and not inp.has_district_plan else "조건부"
+            if inp.planned_building_area and inp.site_area:
+                lim = inp.site_area * cov / 100
+                pc = inp.planned_building_area / inp.site_area * 100
+                ca += f" | 계획 건축면적 {_n(inp.planned_building_area)}㎡ (건폐율 {pc:.2f}%) → " + ("적합" if inp.planned_building_area <= lim + 1e-6 else "초과(부적합)")
             rows.append(Row("규모", "건폐율 → 최대 건축면적", base, f"{m['zone']} {cov}% 이하",
                             f"대지 × {cov}% = {ca}", "건축면적(1층 바닥 투영면적)의 상한 → 배치 가능한 매스 크기", st, note, src))
             far_notes = ["용적률 산정에서 제외되는 면적은 건축법 시행령 제119조제1항제4호(지하층, 지상층 주차용(부속용도), 피난안전구역, 경사지붕 아래 대피공간)"]
@@ -244,6 +251,8 @@ def build_review(inp: ReviewInput):
                 far_notes.insert(0, f"입력한 계획 연면적 {_n(inp.total_floor_area)}㎡가 용적률 상한 {_n(inp.site_area * far / 100)}㎡를 넘음 — 지하층·지상 주차용 등 "
                                     "용적률 산정 제외 면적을 뺀 값인지 확인(제외 면적을 빼고도 넘으면 계획 축소 필요)")
                 st = "조건부"
+            if inp.total_floor_area and inp.site_area:
+                fa += f" | 계획 연면적 {_n(inp.total_floor_area)}㎡ (용적률 {inp.total_floor_area / inp.site_area * 100:.2f}%) → " + ("적합" if inp.total_floor_area <= inp.site_area * far / 100 + 1e-6 else "초과(제외 면적 확인)")
             rows.append(Row("규모", "용적률 → 최대 연면적", base, f"{m['zone']} {far}% 이하",
                             f"대지 × {far}% = {fa} (용적률 산정용 연면적 기준: 지하층·지상층 주차용 등 제외)", "연면적(용적률 산정)의 상한 → 층수·규모 계획", st,
                             far_notes, src))
@@ -265,6 +274,34 @@ def build_review(inp: ReviewInput):
     else:
         floor_area, floor_label = None, None
     use_area = inp.use_floor_area or floor_area
+
+    # --- 2-1. 대지와 도로 / 구조 안전 ---------------------------------------
+    _fa = inp.total_floor_area or floor_area
+    _fa_note = "" if inp.total_floor_area else "(연면적 미입력 — 용적률 상한 가정)"
+    is_factory = inp.use == "공장"
+    road_thr = 3000 if is_factory else 2000
+    if _fa:
+        applied = (f"연면적 {_n(_fa)}㎡{_fa_note} ≥ {road_thr:,}㎡ → 너비 6m 이상 도로에 4m 이상 접해야 함" if _fa >= road_thr
+                   else f"연면적 {_n(_fa)}㎡{_fa_note} < {road_thr:,}㎡ → 영 제28조제2항 비대상(법 제44조제1항의 2m 접도는 별도)")
+        st = "조건부"
+    else:
+        applied, st = "연면적 입력 필요", "미확인"
+    rows.append(Row("대지·도로", "대지와 도로와의 관계", "건축법 제44조, 영 제28조제2항",
+                    f"연면적 합계 {road_thr:,}㎡ 이상(공장 3,000㎡): 너비 6m 이상 도로에 4m 이상 접할 것", applied,
+                    "진입도로 너비와 접도 길이로 대지 선정·출입구 계획 제한", st,
+                    ["실제 접한 도로 너비·접도 길이는 입력 대상이 아님 — 지적도·도로대장으로 확인", "축사·작물 재배사 등 건축조례가 정한 건축물은 제외"],
+                    "data/law_snapshots/bldg_decree_art28_road_20261112.txt"))
+    if _fa:
+        sub = _fa >= 200 and inp.use != "창고시설"
+        applied = (f"설계자가 국토교통부령 구조기준에 따라 구조안전 확인(모든 건축물). 연면적 {_n(_fa)}㎡{_fa_note} → "
+                   + ("착공신고 시 구조안전 확인서류 제출 대상(연면적 200㎡ 이상)" if sub else "연면적 기준으로는 서류 제출 대상 아님(층수·높이 등 다른 호는 별도)"))
+        st = "조건부"
+    else:
+        applied, st = "설계자 구조안전 확인 필요", "미확인"
+    rows.append(Row("구조", "구조 안전의 확인", "건축법 제48조, 영 제32조", "국토교통부령 구조기준에 따른 구조안전 확인. 층수 2층 이상·연면적 200㎡ 이상·높이 13m 이상·처마높이 9m 이상·기둥 간격 10m 이상 등은 확인서류 제출",
+                    applied, "구조 시스템·스팬 계획의 기준(구조설계기준 KDS 등은 부령·고시 — 미연결)", st,
+                    ["제출 대상 호 일부(층수·높이·스팬)는 입력하지 않아 판정하지 않음 — 영 제32조제2항 각 호 확인"],
+                    "data/law_snapshots/bldg_decree_art32_structure_20261112.txt"))
 
     # --- 3. 일조(정북) ------------------------------------------------------
     sun_zone = [c for c in cats if c in ("전용주거", "일반주거")]
@@ -320,6 +357,14 @@ def build_review(inp: ReviewInput):
                     if x not in n:
                         n.append(x)
                 pk_count = res.get("count")
+                if res.get("count") is not None and not res.get("ambiguous"):
+                    ref = res["count"]
+                    if inp.guideline_parking:
+                        applied += f" | 공모지침 법정 {inp.guideline_parking}대"
+                        ref = max(ref, inp.guideline_parking)
+                        n.append("공모지침 값과 조례 계산값 중 큰 값을 기준으로 계획을 판정함 — 지침 우선 여부는 공고문 확인")
+                    if inp.planned_parking is not None:
+                        applied += f" | 계획 {inp.planned_parking}대 → " + ("적합" if inp.planned_parking >= ref else f"부족({ref - inp.planned_parking}대)")
                 if pk_count is not None:
                     vals["parking_count"] = pk_count
                 status = "확정" if (res.get("status") == "PREVIEW" and not res.get("ambiguous") and inp.total_floor_area) else "조건부"
@@ -434,7 +479,7 @@ def build_review(inp: ReviewInput):
         ("가로구역별 높이·도로 사선", "건축법 제60조·제61조 외, 지구단위계획", "도로 너비별 사선 제한·가로구역 최고높이는 미연결 — 지구단위계획 지침과 함께 확인"),
         ("대지 안의 공지·건축선", "건축법 제46조, 영 제31조, 건축 조례", "이격 거리(용도지역·용도별)와 건축선 후퇴는 미연결 — 건축 조례 확인"),
         ("장애인 편의시설", "장애인등편의법 시행령 별표 2", "대상 시설·설치 기준은 미연결"),
-        ("에너지·녹색건축·인증", "녹색건축물 조성 지원법 등", "의무 대상·등급은 미연결"),
+        ("신·재생에너지 공급의무·녹색건축 인증·제로에너지건축물 인증", "신에너지 및 재생에너지 개발·이용·보급 촉진법 시행령 제15조, 녹색건축 인증에 관한 규칙, 제로에너지건축물 인증에 관한 규칙", "공급 비율·인증 등급은 용도·규모·공공 여부에 따라 달라 미연결 — 원문 확인"),
         ("심의·평가 대상", "건축위원회 심의, 교통영향평가, 경관 심의", "규모별 대상 기준은 미연결"),
     ):
         rows.append(Row("미연결 항목", it, basis, "—", "자동 검토하지 않음", "설계 초기에 별도 확인 필요", "미연결", [how]))
@@ -464,9 +509,9 @@ def review_to_markdown(rows, context=None):
     for r in rows:
         if r.section != cur:
             cur = r.section
-            L += ["", f"## {cur}", "", "| 항목 | 근거 | 기준 | 이 대지 적용값 | 설계 영향 | 상태 |", "|---|---|---|---|---|---|"]
+            L += ["", f"## {cur}", "", "| 법규명 및 조항 | 대상 | 법적 기준 | 설계기준(이 대지 적용·계획) | 설계 영향 | 상태 |", "|---|---|---|---|---|---|"]
         esc = lambda s: str(s).replace("|", "/").replace("\n", " ")
-        L.append(f"| {esc(r.item)} | {esc(r.basis)} | {esc(r.standard)} | {esc(r.applied)} | {esc(r.impact)} | {r.status} |")
+        L.append(f"| {esc(r.basis)} | {esc(r.item)} | {esc(r.standard)} | {esc(r.applied)} | {esc(r.impact)} | {r.status} |")
     L += ["", "## 비고(항목별)", ""]
     for r in rows:
         if r.notes:

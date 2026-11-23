@@ -136,7 +136,14 @@ def lookup_zones(x, y, **kw):
 
 
 def lookup_district_plan(x, y, **kw):
-    return query_layer(LAYER_DISTRICT_PLAN, x, y, **kw)
+    """지구단위계획구역 조회. 이 레이어는 토지거래허가구역 등 다른 구역도 섞어 돌려주므로 '지구단위계획'이 든 이름만 인정한다."""
+    r = query_layer(LAYER_DISTRICT_PLAN, x, y, **kw)
+    if r["status"] == "OK":
+        names = [n for n in r["names"] if "지구단위계획" in n]
+        if not names:
+            return {"status": "NOT_FOUND", "names": [], "error": None}
+        return {**r, "names": names}
+    return r
 
 
 def geocode(address, key=None, domain=None, getter=None, retries=2, sleep=1.0, timeout=20):
@@ -182,3 +189,113 @@ def geocode(address, key=None, domain=None, getter=None, retries=2, sleep=1.0, t
     if errors:
         return {"status": "ERROR", "x": None, "y": None, "type": None, "error": "; ".join(errors)}
     return {"status": "NOT_FOUND", "x": None, "y": None, "type": None, "error": None}
+
+
+LAYER_PARCEL = "LP_PA_CBND_BUBUN"   # 연속지적도(필지)
+NED_URL = "https://api.vworld.kr/ned/data/getLandCharacteristics"
+
+
+def _num(v):
+    try:
+        return float(str(v).replace(",", ""))
+    except (TypeError, ValueError):
+        return None
+
+
+def lookup_parcel(x, y, key=None, domain=None, getter=None, retries=2, sleep=1.0):
+    """좌표 → 필지(PNU·지번 주소·공시지가). 반환 {"status","pnu","addr","jiga","error"}."""
+    key, domain = _config(key, domain)
+    out = {"status": "ERROR", "pnu": None, "addr": None, "jiga": None, "error": None}
+    if not key and not relay_configured():
+        out["error"] = "VWORLD_API_KEY 미설정(중계도 미설정)"
+        return out
+    getter = _default_getter(getter)
+    params = {"service": "data", "request": "GetFeature", "data": LAYER_PARCEL, "key": key, "domain": domain,
+              "geomFilter": f"POINT({x} {y})", "geometry": "false", "attribute": "true", "format": "json", "size": "1"}
+    last = "알 수 없는 오류"
+    for attempt in range(retries + 1):
+        try:
+            resp = _response(getter(DATA_URL, params=params, timeout=20))
+        except Exception as e:
+            last = _fail_msg("", e)
+            if attempt < retries:
+                time.sleep(sleep)
+            continue
+        st = resp.get("status")
+        if st == "OK":
+            feats = resp["result"]["featureCollection"]["features"]
+            if feats:
+                p = feats[0].get("properties") or {}
+                return {"status": "OK", "pnu": p.get("pnu"), "addr": p.get("addr"), "jiga": _num(p.get("jiga")), "error": None}
+            return {**out, "status": "NOT_FOUND"}
+        if st == "NOT_FOUND":
+            return {**out, "status": "NOT_FOUND"}
+        code = str((resp.get("error") or {}).get("code", st))
+        last = f"VWorld 오류 {code}"
+        if code in NON_RETRY_CODES:
+            break
+        if attempt < retries:
+            time.sleep(sleep)
+    out["error"] = last
+    return out
+
+
+def lookup_land(pnu, key=None, domain=None, getter=None, retries=2, sleep=1.0):
+    """PNU → 토지(임야)대장 특성: 면적(㎡)·지목·용도지역(토지이용계획 1·2순위). 최신 기준년월 1건.
+    반환 {"status","area","jimok","zones","year","error"}. 면적은 대장 면적이며 건축법상 대지면적(도로 편입·공공용지 등 제외)과 다를 수 있다."""
+    key, domain = _config(key, domain)
+    out = {"status": "ERROR", "area": None, "jimok": None, "zones": [], "year": None, "error": None}
+    if not pnu:
+        return {**out, "status": "NOT_FOUND"}
+    if not key:
+        out["error"] = "VWORLD_API_KEY 미설정(토지특성은 중계 미지원)"
+        return out
+    if getter is None:
+        import requests
+        getter = requests.get
+    params = {"key": key, "domain": domain, "pnu": pnu, "format": "json", "numOfRows": "20", "pageNo": "1"}
+    last = "알 수 없는 오류"
+    for attempt in range(retries + 1):
+        try:
+            r = getter(NED_URL, params=params, timeout=20)
+            body = r.json()
+        except Exception as e:
+            last = _fail_msg("", e) if isinstance(e, ValueError) else f"응답 처리 실패({type(e).__name__})"
+            if attempt < retries:
+                time.sleep(sleep)
+            continue
+        fields = ((body.get("landCharacteristicss") or {}).get("field")) if isinstance(body, dict) else None
+        if not fields:
+            msg = (body.get("landCharacteristicss") or {}).get("resultMsg") if isinstance(body, dict) else ""
+            if isinstance(body, dict) and "response" in body:
+                msg = (body["response"] or {}).get("resultMsg") or msg
+            if msg:
+                last = f"토지특성 응답: {_snippet(msg, 80)}"
+                break
+            return {**out, "status": "NOT_FOUND"}
+        if isinstance(fields, dict):
+            fields = [fields]
+        best = max(fields, key=lambda f: (str(f.get("stdrYear", "")), str(f.get("stdrMt", ""))))
+        zones = []
+        for k in ("prposArea1Nm", "prposArea2Nm"):
+            z = (best.get(k) or "").strip()
+            if z and z not in zones and z != "지정되지않음":
+                zones.append(z)
+        return {"status": "OK", "area": _num(best.get("lndpclAr")), "jimok": best.get("lndcgrCodeNm"), "zones": zones,
+                "year": best.get("stdrYear"), "error": None}
+    out["error"] = last
+    return out
+
+
+def lookup_site(address, **kw):
+    """주소 → 필지·대지면적·용도지역·지구단위계획 한 번에. 각 단계의 상태를 그대로 담는다(실패해도 앞 단계 결과는 보존)."""
+    res = {"geocode": geocode(address, **kw), "parcel": None, "land": None, "zones": None, "plan": None}
+    g = res["geocode"]
+    if g["status"] != "OK":
+        return res
+    res["parcel"] = lookup_parcel(g["x"], g["y"], **kw)
+    if res["parcel"]["status"] == "OK":
+        res["land"] = lookup_land(res["parcel"]["pnu"], **kw)
+    res["zones"] = lookup_zones(g["x"], g["y"], **kw)
+    res["plan"] = lookup_district_plan(g["x"], g["y"], **kw)
+    return res
