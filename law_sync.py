@@ -31,11 +31,11 @@ _ORDIN_QUERIES = {"parking": ["주차장 조례", "주차장"]}
 
 
 def sources():
-    out = list(NATIONAL)
+    out = [{**n, "group": "national"} for n in NATIONAL]
     seen = set()
     for key, m in DJ_META.items():
         seen.add((m["name"], m["org"]))
-        out.append({"name": m["name"], "kind": "ordin", "org": m["org"],
+        out.append({"name": m["name"], "kind": "ordin", "org": m["org"], "group": "daejeon",
                     "promulgation_no": m["promulgation_no"], "effective": m["effective"],
                     "queries": _ORDIN_QUERIES.get(key, [m["name"]])})
     # 지역별 도시계획 조례(data/ordinance_zone_limits.json) — 대전 도시계획 조례 등 중복은 한 번만
@@ -46,7 +46,7 @@ def sources():
             if (o["name"], o["org"]) in seen:
                 continue
             seen.add((o["name"], o["org"]))
-            out.append({"name": o["name"], "kind": "ordin", "org": o["org"],
+            out.append({"name": o["name"], "kind": "ordin", "org": o["org"], "group": "urban",
                         "promulgation_no": o["promulgation_no"], "effective": o["effective"],
                         "queries": [o["name"]]})
     except Exception:
@@ -59,7 +59,7 @@ def sources():
             if (o["name"], o["org"]) in seen:
                 continue
             seen.add((o["name"], o["org"]))
-            out.append({"name": o["name"], "kind": "ordin", "org": o["org"],
+            out.append({"name": o["name"], "kind": "ordin", "org": o["org"], "group": "sunlight",
                         "promulgation_no": o["promulgation_no"], "effective": o["effective"],
                         "queries": [o["name"]]})
     except Exception:
@@ -72,9 +72,40 @@ def sources():
             if (o["name"], o["org"]) in seen:
                 continue
             seen.add((o["name"], o["org"]))
-            out.append({"name": o["name"], "kind": "ordin", "org": o["org"],
+            out.append({"name": o["name"], "kind": "ordin", "org": o["org"], "group": "parking",
                         "promulgation_no": o["promulgation_no"], "effective": o["effective"],
                         "queries": ["주차장 조례", "주차장", o["name"]]})
+    except Exception:
+        pass
+    # 광역시·특별시 건축 조례(조경·공개공지): data/landscape_ordinances.json (같은 건축 조례가 일조 목록에 이미 있으면 중복 제외)
+    try:
+        import json
+        import pathlib
+        land = json.loads((pathlib.Path(__file__).resolve().parent / "data" / "landscape_ordinances.json").read_text(encoding="utf-8"))
+        for r in land["regions"].values():
+            o = r["ordinance"]
+            key2 = (o["name"], o["org"])
+            if key2 in seen:
+                # 일조 쪽에서 이미 감시 중이어도 조경 데이터 재생성은 별도로 필요 → 범주만 landscape 로 추가 표시
+                for x in out:
+                    if (x["name"], x.get("org")) == key2:
+                        x["group"] = x["group"] + "+landscape"
+                continue
+            seen.add(key2)
+            out.append({"name": o["name"], "kind": "ordin", "org": o["org"], "group": "landscape",
+                        "promulgation_no": o["promulgation_no"], "effective": o["effective"], "queries": [o["name"]]})
+    except Exception:
+        pass
+    # 개발제한구역법·시행령: data/greenbelt.json
+    try:
+        import json
+        import pathlib
+        gb = json.loads((pathlib.Path(__file__).resolve().parent / "data" / "greenbelt.json").read_text(encoding="utf-8"))
+        for k in ("act", "decree"):
+            g = gb[k]
+            e = g["effective_iso"]
+            out.append({"name": g["name"], "kind": "law", "group": "greenbelt", "promulgation_no": g["promulgation_no"], "effective": e,
+                        "queries": [g["name"]]})
     except Exception:
         pass
     return out

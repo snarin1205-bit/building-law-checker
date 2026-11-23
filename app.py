@@ -26,8 +26,8 @@ def _maps(x, y):
 
 
 @st.cache_data(show_spinner="CAD 파일을 만드는 중...", ttl=3600)
-def _cad(x, y, pnu):
-    return export_cad(x, y, pnu, parcel_polygon(x, y))
+def _cad(x, y, pnu, origin):
+    return export_cad(x, y, pnu, parcel_polygon(x, y), origin=origin)
 
 
 st.set_page_config(page_title="현상설계 법규 분석 v2", page_icon="🏛️", layout="wide")
@@ -147,12 +147,15 @@ if submitted:
             m2.image(mp["digital"], caption="수치지도(일반 지도)", width="stretch")
             st.caption("출처: 국토교통부 브이월드. 경계는 참고용이며 측량 성과가 아닙니다.")
             if map_pnu:
-                cd = _cad(map_xy[0], map_xy[1], map_pnu)
+                _mode = st.radio("CAD 좌표", ["대상 필지 중심을 (0,0,0) 원점으로", "중부원점 절대좌표(EPSG:5186)"], horizontal=True, key="cad_origin")
+                cd = _cad(map_xy[0], map_xy[1], map_pnu, "parcel" if _mode.startswith("대상") else "absolute")
                 if cd["status"] == "OK":
                     c1, c2 = st.columns(2)
                     c1.download_button("지적도 CAD(.dxf) 저장", cd["cadastral"], file_name="cadastral.dxf", mime="application/dxf")
                     c2.download_button("수치지도 CAD(.dxf) 저장", cd["digital"], file_name="digital_map.dxf", mime="application/dxf")
                     n_ = cd["counts"]
+                    if cd["origin"]["mode"] == "parcel":
+                        st.caption(f"원점 (0,0,0) = 대상 필지 중심 · 절대좌표로 되돌리려면 X에 {cd['origin']['x']:,.3f}, Y에 {cd['origin']['y']:,.3f}를 더하세요({cd['epsg']}). 도면의 '정보' 레이어에도 적혀 있습니다.")
                     st.caption(f"CAD 좌표계 {cd['epsg']}(중부원점 TM, 단위 m) · 필지 {n_.get('필지', 0)} / 건물 {n_.get('건물', 0)} / 도로 {n_.get('도로', 0)} / 용도지역 {n_.get('용도지역', 0)} · 대상 필지는 '대상필지' 레이어(빨강)")
                     for note in cd["notes"]:
                         st.warning(note)
