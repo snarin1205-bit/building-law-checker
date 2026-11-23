@@ -31,27 +31,25 @@ st.warning("법률 판단 보조 도구입니다. 실무 제출·허가 전 공�
 st.caption(f"판단 정책: OpenCrab Core v2 ({CORE_PACK_ID}) · 로컬 정책 어댑터 / 실시간 OpenCrab 연결 아님")
 
 with st.form("site_form"):
-    left, right = st.columns(2)
-    with left:
-        address = st.text_input("주소/지번", placeholder="예: 대전광역시 유성구 ...")
-        building_use = st.selectbox("건축물 주용도 (건축법 시행령 별표 1)", USE_LABELS)
-        site_area = st.number_input("대지면적 (㎡) — 비우면 토지대장 면적 사용", min_value=0.0, value=0.0)
-        is_public = st.checkbox("공공건축물")
-        total_floor = st.number_input("계획 연면적 (㎡) — 비우면 용적률 상한 기준으로 가정", min_value=0.0, value=0.0)
-    with right:
-        is_housing = st.checkbox("주택사업/정비사업")
-        gb_manual = st.checkbox("개발제한구역 안 (자동 조회가 안 될 때 직접 체크)")
-        manual_zone = st.selectbox("용도지역 직접 선택 (자동 조회가 안 될 때만)",
-                                   ["자동 조회 결과 사용"] + list(CANON_ZONES))
-        district_choice = st.selectbox("지구단위계획 적용 여부(수동 확인)", ["미확인", "적용", "비적용"])
-        covered = st.number_input("계획 건축면적 (㎡)", min_value=0.0, value=0.0)
-        planned_parking = st.number_input("계획 주차대수 (대, 설계안)", min_value=0, value=0, step=1)
-        guide_parking = st.number_input("공모지침의 법정 주차대수 (대, 있으면)", min_value=0, value=0, step=1)
-        far_area = st.number_input("용적률 산정용 연면적 (㎡, 검토값)", min_value=0.0, value=0.0)
-        use_floor = st.number_input("해당 용도 바닥면적 합계 (㎡) — 비우면 연면적", min_value=0.0, value=0.0)
-        typical_floor = st.number_input("3층 이상 대표층의 거실 바닥면적 (㎡) — 직통계단 판정용", min_value=0.0, value=0.0)
-        basement_floor = st.number_input("지하층 거실 바닥면적 (㎡) — 직통계단 판정용", min_value=0.0, value=0.0)
-    submitted = st.form_submit_button("법규 리스크 분석", type="primary")
+    address = st.text_input("주소/지번", placeholder="예: 충청남도 계룡시 엄사면 번영3길 30")
+    submitted = st.form_submit_button("법규 검토", type="primary")
+
+# 간소화: 입력은 주소뿐. 나머지는 기본값(미입력)으로 두고 조회 결과로 대지면적·용도지역을 채운다.
+building_use = USE_LABELS[0]
+site_area = 0.0
+is_public = False
+total_floor = 0.0
+is_housing = False
+gb_manual = False
+manual_zone = "자동 조회 결과 사용"
+district_choice = "미확인"
+covered = 0.0
+planned_parking = 0
+guide_parking = 0
+far_area = 0.0
+use_floor = 0.0
+typical_floor = 0.0
+basement_floor = 0.0
 
 if submitted:
     district = {"미확인": None, "적용": True, "비적용": False}[district_choice]
