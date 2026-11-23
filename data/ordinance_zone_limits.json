@@ -1,0 +1,1126 @@
+{
+  "generated": "2026-11-23",
+  "note": "원문에서 읽은 값만 포함. 없는 항목은 미확인. 수정 금지(tools/build_ordinance_data.py 로 재생성).",
+  "regions": {
+    "서울특별시": {
+      "ordinance": {
+        "name": "서울특별시 도시계획 조례",
+        "org": "서울특별시",
+        "mst": "2149501",
+        "promulgation_no": "10139",
+        "effective": "2026-07-13",
+        "snapshot": "data/law_snapshots/ordinances/서울특별시_도시계획조례_20260713.txt",
+        "annex_snapshot": null,
+        "method": "article"
+      },
+      "zones": {
+        "제1종전용주거지역": {
+          "coverage": 50,
+          "far": 100,
+          "coverage_note": "",
+          "far_note": ""
+        },
+        "제2종전용주거지역": {
+          "coverage": 40,
+          "far": 120,
+          "coverage_note": "",
+          "far_note": ""
+        },
+        "제1종일반주거지역": {
+          "coverage": 60,
+          "far": 150,
+          "coverage_note": "",
+          "far_note": ""
+        },
+        "제2종일반주거지역": {
+          "coverage": 60,
+          "far": 200,
+          "coverage_note": "",
+          "far_note": ""
+        },
+        "제3종일반주거지역": {
+          "coverage": 50,
+          "far": 250,
+          "coverage_note": "",
+          "far_note": ""
+        },
+        "준주거지역": {
+          "coverage": 60,
+          "far": 400,
+          "coverage_note": "",
+          "far_note": ""
+        },
+        "중심상업지역": {
+          "coverage": 60,
+          "far": 1000,
+          "coverage_note": "",
+          "far_note": "(단, 서울도심: 800퍼센트)"
+        },
+        "일반상업지역": {
+          "coverage": 60,
+          "far": 800,
+          "coverage_note": "",
+          "far_note": "(단, 서울도심: 600퍼센트)"
+        },
+        "근린상업지역": {
+          "coverage": 60,
+          "far": 600,
+          "coverage_note": "",
+          "far_note": "(단, 서울도심: 500퍼센트)"
+        },
+        "유통상업지역": {
+          "coverage": 60,
+          "far": 600,
+          "coverage_note": "",
+          "far_note": "(단, 서울도심: 500퍼센트)"
+        },
+        "전용공업지역": {
+          "coverage": 60,
+          "far": 200,
+          "coverage_note": "",
+          "far_note": ""
+        },
+        "일반공업지역": {
+          "coverage": 60,
+          "far": 200,
+          "coverage_note": "",
+          "far_note": ""
+        },
+        "준공업지역": {
+          "coverage": 60,
+          "far": 400,
+          "coverage_note": "",
+          "far_note": ""
+        },
+        "보전녹지지역": {
+          "coverage": 20,
+          "far": 50,
+          "coverage_note": "",
+          "far_note": ""
+        },
+        "생산녹지지역": {
+          "coverage": 20,
+          "far": 50,
+          "coverage_note": "",
+          "far_note": ""
+        },
+        "자연녹지지역": {
+          "coverage": 20,
+          "far": 50,
+          "coverage_note": "",
+          "far_note": ""
+        }
+      },
+      "missing": {
+        "coverage": [
+          "보전관리지역",
+          "생산관리지역",
+          "계획관리지역",
+          "농림지역",
+          "자연환경보전지역"
+        ],
+        "far": [
+          "보전관리지역",
+          "생산관리지역",
+          "계획관리지역",
+          "농림지역",
+          "자연환경보전지역"
+        ]
+      }
+    },
+    "부산광역시": {
+      "ordinance": {
+        "name": "부산광역시 도시계획 조례",
+        "org": "부산광역시",
+        "mst": "2120465",
+        "promulgation_no": "7923",
+        "effective": "2026-04-08",
+        "snapshot": "data/law_snapshots/ordinances/부산광역시_도시계획조례_20260408.txt",
+        "annex_snapshot": null,
+        "method": "article"
+      },
+      "zones": {
+        "제1종전용주거지역": {
+          "coverage": 50,
+          "far": 100,
+          "coverage_note": "",
+          "far_note": ""
+        },
+        "제2종전용주거지역": {
+          "coverage": 40,
+          "far": 120,
+          "coverage_note": "",
+          "far_note": ""
+        },
+        "제1종일반주거지역": {
+          "coverage": 60,
+          "far": 180,
+          "coverage_note": "",
+          "far_note": ""
+        },
+        "제2종일반주거지역": {
+          "coverage": 60,
+          "far": 220,
+          "coverage_note": "",
+          "far_note": "(단, 대지면적 1천제곱미터 초과 시 200퍼센트 이하)"
+        },
+        "제3종일반주거지역": {
+          "coverage": 50,
+          "far": 300,
+          "coverage_note": "",
+          "far_note": ""
+        },
+        "준주거지역": {
+          "coverage": 60,
+          "far": 400,
+          "coverage_note": "",
+          "far_note": ""
+        },
+        "중심상업지역": {
+          "coverage": 80,
+          "far": 1300,
+          "coverage_note": "",
+          "far_note": ""
+        },
+        "일반상업지역": {
+          "coverage": 60,
+          "far": 1000,
+          "coverage_note": "",
+          "far_note": ""
+        },
+        "근린상업지역": {
+          "coverage": 60,
+          "far": 700,
+          "coverage_note": "",
+          "far_note": ""
+        },
+        "유통상업지역": {
+          "coverage": 60,
+          "far": 800,
+          "coverage_note": "",
+          "far_note": ""
+        },
+        "전용공업지역": {
+          "coverage": 70,
+          "far": 300,
+          "coverage_note": "(다만, 공장, 창고, 위험물 저장 및 처리시설, 자동차 관련 시설, 자원순환 관련 시설이외의 용도가 포함된 필지는 60퍼센트 이하)",
+          "far_note": ""
+        },
+        "일반공업지역": {
+          "coverage": 70,
+          "far": 350,
+          "coverage_note": "(다만, 공장, 창고, 위험물 저장 및 처리시설, 자동차 관련 시설, 자원순환 관련 시설이외의 용도가 포함된 필지는 60퍼센트 이하)",
+          "far_note": ""
+        },
+        "준공업지역": {
+          "coverage": 70,
+          "far": 400,
+          "coverage_note": "(다만, 수산물의 유통ㆍ판매ㆍ보관 시설을 갖춘 항만시설, 공장, 창고, 위험물 저장 및 처리시설, 자동차 관련 시설, 자원순환 관련 시설이외의 용도가 포함된 필지는 60퍼센트 이하)",
+          "far_note": ""
+        },
+        "보전녹지지역": {
+          "coverage": 20,
+          "far": 60,
+          "coverage_note": "",
+          "far_note": ""
+        },
+        "생산녹지지역": {
+          "coverage": 20,
+          "far": 80,
+          "coverage_note": "",
+          "far_note": ""
+        },
+        "자연녹지지역": {
+          "coverage": 20,
+          "far": 80,
+          "coverage_note": "",
+          "far_note": ""
+        },
+        "자연환경보전지역": {
+          "coverage": 20,
+          "far": 60,
+          "coverage_note": "",
+          "far_note": ""
+        }
+      },
+      "missing": {
+        "coverage": [
+          "보전관리지역",
+          "생산관리지역",
+          "계획관리지역",
+          "농림지역"
+        ],
+        "far": [
+          "보전관리지역",
+          "생산관리지역",
+          "계획관리지역",
+          "농림지역"
+        ]
+      }
+    },
+    "대구광역시": {
+      "ordinance": {
+        "name": "대구광역시 도시계획 조례",
+        "org": "대구광역시",
+        "mst": "2128915",
+        "promulgation_no": "6487",
+        "effective": "2026-05-11",
+        "snapshot": "data/law_snapshots/ordinances/대구광역시_도시계획조례_20260511.txt",
+        "annex_snapshot": null,
+        "method": "article"
+      },
+      "zones": {
+        "제1종전용주거지역": {
+          "coverage": 50,
+          "far": 100,
+          "coverage_note": "",
+          "far_note": ""
+        },
+        "제2종전용주거지역": {
+          "coverage": 40,
+          "far": 120,
+          "coverage_note": "",
+          "far_note": ""
+        },
+        "제1종일반주거지역": {
+          "coverage": 60,
+          "far": 200,
+          "coverage_note": "",
+          "far_note": ""
+        },
+        "제2종일반주거지역": {
+          "coverage": 60,
+          "far": 220,
+          "coverage_note": "",
+          "far_note": ""
+        },
+        "제3종일반주거지역": {
+          "coverage": 50,
+          "far": 250,
+          "coverage_note": "",
+          "far_note": ""
+        },
+        "준주거지역": {
+          "coverage": 60,
+          "far": 400,
+          "coverage_note": "",
+          "far_note": ""
+        },
+        "중심상업지역": {
+          "coverage": 80,
+          "far": 1300,
+          "coverage_note": "",
+          "far_note": ""
+        },
+        "일반상업지역": {
+          "coverage": 70,
+          "far": 1000,
+          "coverage_note": "",
+          "far_note": ""
+        },
+        "근린상업지역": {
+          "coverage": 70,
+          "far": 800,
+          "coverage_note": "",
+          "far_note": ""
+        },
+        "유통상업지역": {
+          "coverage": 70,
+          "far": 900,
+          "coverage_note": "",
+          "far_note": ""
+        },
+        "전용공업지역": {
+          "coverage": 70,
+          "far": 300,
+          "coverage_note": "",
+          "far_note": ""
+        },
+        "일반공업지역": {
+          "coverage": 70,
+          "far": 350,
+          "coverage_note": "",
+          "far_note": ""
+        },
+        "준공업지역": {
+          "coverage": 70,
+          "far": 400,
+          "coverage_note": "",
+          "far_note": ""
+        },
+        "보전녹지지역": {
+          "coverage": 20,
+          "far": 60,
+          "coverage_note": "",
+          "far_note": ""
+        },
+        "생산녹지지역": {
+          "coverage": 20,
+          "far": 100,
+          "coverage_note": "",
+          "far_note": ""
+        },
+        "자연녹지지역": {
+          "coverage": 20,
+          "far": 100,
+          "coverage_note": "",
+          "far_note": ""
+        },
+        "보전관리지역": {
+          "coverage": 20,
+          "far": 80,
+          "coverage_note": "",
+          "far_note": ""
+        },
+        "생산관리지역": {
+          "coverage": 20,
+          "far": 80,
+          "coverage_note": "",
+          "far_note": ""
+        },
+        "계획관리지역": {
+          "coverage": 40,
+          "far": 100,
+          "coverage_note": "",
+          "far_note": "(다만, 법 제75조의3제3항에 따른 성장관리계획구역을 수립한 지역의 경우 125퍼센트 이하)"
+        },
+        "농림지역": {
+          "coverage": 20,
+          "far": 80,
+          "coverage_note": "",
+          "far_note": ""
+        },
+        "자연환경보전지역": {
+          "coverage": 20,
+          "far": 80,
+          "coverage_note": "",
+          "far_note": ""
+        }
+      },
+      "missing": {
+        "coverage": [],
+        "far": []
+      }
+    },
+    "인천광역시": {
+      "ordinance": {
+        "name": "인천광역시 도시계획 조례",
+        "org": "인천광역시",
+        "mst": "2150257",
+        "promulgation_no": "7763",
+        "effective": "2026-07-13",
+        "snapshot": "data/law_snapshots/ordinances/인천광역시_도시계획조례_20260713.txt",
+        "annex_snapshot": null,
+        "method": "article"
+      },
+      "zones": {
+        "제1종전용주거지역": {
+          "coverage": 50,
+          "far": 80,
+          "coverage_note": "",
+          "far_note": ""
+        },
+        "제2종전용주거지역": {
+          "coverage": 50,
+          "far": 120,
+          "coverage_note": "",
+          "far_note": ""
+        },
+        "제1종일반주거지역": {
+          "coverage": 60,
+          "far": 200,
+          "coverage_note": "",
+          "far_note": ""
+        },
+        "제2종일반주거지역": {
+          "coverage": 60,
+          "far": 250,
+          "coverage_note": "",
+          "far_note": ""
+        },
+        "제3종일반주거지역": {
+          "coverage": 50,
+          "far": 300,
+          "coverage_note": "",
+          "far_note": ""
+        },
+        "준주거지역": {
+          "coverage": 60,
+          "far": 500,
+          "coverage_note": "",
+          "far_note": "(다만, 순수 주거용 공동주택의 경우에는 300퍼센트)"
+        },
+        "중심상업지역": {
+          "coverage": 80,
+          "far": 1300,
+          "coverage_note": "",
+          "far_note": ""
+        },
+        "일반상업지역": {
+          "coverage": 70,
+          "far": 1000,
+          "coverage_note": "",
+          "far_note": ""
+        },
+        "근린상업지역": {
+          "coverage": 70,
+          "far": 700,
+          "coverage_note": "",
+          "far_note": ""
+        },
+        "유통상업지역": {
+          "coverage": 70,
+          "far": 800,
+          "coverage_note": "",
+          "far_note": ""
+        },
+        "전용공업지역": {
+          "coverage": 70,
+          "far": 300,
+          "coverage_note": "",
+          "far_note": ""
+        },
+        "일반공업지역": {
+          "coverage": 70,
+          "far": 350,
+          "coverage_note": "",
+          "far_note": ""
+        },
+        "준공업지역": {
+          "coverage": 70,
+          "far": 400,
+          "coverage_note": "",
+          "far_note": ""
+        },
+        "보전녹지지역": {
+          "coverage": 20,
+          "far": 50,
+          "coverage_note": "",
+          "far_note": ""
+        },
+        "생산녹지지역": {
+          "coverage": 20,
+          "far": 80,
+          "coverage_note": "",
+          "far_note": ""
+        },
+        "자연녹지지역": {
+          "coverage": 20,
+          "far": 80,
+          "coverage_note": "",
+          "far_note": ""
+        },
+        "보전관리지역": {
+          "coverage": 20,
+          "far": 80,
+          "coverage_note": "",
+          "far_note": ""
+        },
+        "생산관리지역": {
+          "coverage": 20,
+          "far": 80,
+          "coverage_note": "",
+          "far_note": ""
+        },
+        "계획관리지역": {
+          "coverage": 40,
+          "far": 100,
+          "coverage_note": "",
+          "far_note": ""
+        },
+        "농림지역": {
+          "coverage": 20,
+          "far": 80,
+          "coverage_note": "",
+          "far_note": ""
+        },
+        "자연환경보전지역": {
+          "coverage": 20,
+          "far": 80,
+          "coverage_note": "",
+          "far_note": ""
+        }
+      },
+      "missing": {
+        "coverage": [],
+        "far": []
+      }
+    },
+    "광주광역시": {
+      "ordinance": {
+        "name": "광주광역시 도시계획 조례",
+        "org": "(구)광주광역시",
+        "mst": "2084475",
+        "promulgation_no": "6636",
+        "effective": "2025-11-11",
+        "snapshot": "data/law_snapshots/ordinances/광주광역시_도시계획조례_20251111.txt",
+        "annex_snapshot": null,
+        "method": "article"
+      },
+      "zones": {
+        "제1종전용주거지역": {
+          "coverage": 40,
+          "far": 80,
+          "coverage_note": "",
+          "far_note": ""
+        },
+        "제2종전용주거지역": {
+          "coverage": 40,
+          "far": 120,
+          "coverage_note": "",
+          "far_note": ""
+        },
+        "제1종일반주거지역": {
+          "coverage": 60,
+          "far": 150,
+          "coverage_note": "",
+          "far_note": ""
+        },
+        "제2종일반주거지역": {
+          "coverage": 60,
+          "far": 220,
+          "coverage_note": "",
+          "far_note": "(다만, 「도시 및 주거환경 정비법」에 따라 시행하는 정비사업은 광주광역시 도시·주거환경정비기본계획을 적용한다) 다만, 택지개발지구·도시개발구역·산업단지는 200퍼센트 이하로 한다"
+        },
+        "제3종일반주거지역": {
+          "coverage": 50,
+          "far": 250,
+          "coverage_note": "",
+          "far_note": "(다만, 「도시 및 주거환경정비법」에 따라 시행하는 정비사업은 광주광역시 도시 및 주거환경정비 기본계획을 적용한다)"
+        },
+        "준주거지역": {
+          "coverage": 60,
+          "far": 400,
+          "coverage_note": "",
+          "far_note": ""
+        },
+        "중심상업지역": {
+          "coverage": 70,
+          "far": 1300,
+          "coverage_note": "(다만,방화지구의 건축물로서 주요 구조부와 외벽이 내화구조인 경우에는 80퍼센트 이하로 한다)",
+          "far_note": ""
+        },
+        "일반상업지역": {
+          "coverage": 60,
+          "far": 1000,
+          "coverage_note": "",
+          "far_note": ""
+        },
+        "근린상업지역": {
+          "coverage": 60,
+          "far": 700,
+          "coverage_note": "",
+          "far_note": ""
+        },
+        "유통상업지역": {
+          "coverage": 60,
+          "far": 800,
+          "coverage_note": "",
+          "far_note": ""
+        },
+        "전용공업지역": {
+          "coverage": 70,
+          "far": 300,
+          "coverage_note": "",
+          "far_note": ""
+        },
+        "일반공업지역": {
+          "coverage": 70,
+          "far": 350,
+          "coverage_note": "(다만, 공장, 창고, 자동차 관련 시설 이외의 용도를 포함하는 경우 60퍼센트 이하로 한다)",
+          "far_note": ""
+        },
+        "준공업지역": {
+          "coverage": 70,
+          "far": 400,
+          "coverage_note": "(다만, 공장, 창고, 자동차 관련 시설 이외의 용도를 포함하는 경우 60퍼센트 이하로 한다)",
+          "far_note": ""
+        },
+        "보전녹지지역": {
+          "coverage": 20,
+          "far": 60,
+          "coverage_note": "",
+          "far_note": ""
+        },
+        "생산녹지지역": {
+          "coverage": 20,
+          "far": 60,
+          "coverage_note": "",
+          "far_note": ""
+        },
+        "자연녹지지역": {
+          "coverage": 20,
+          "far": 60,
+          "coverage_note": "(다만, 성장관리계획을 수립한 지역의 경우 30퍼센트 이하로 한다)",
+          "far_note": "(다만, 성장관리계획을 수립한 지역의 경우 80퍼센트 이하로 한다)"
+        },
+        "보전관리지역": {
+          "coverage": 20,
+          "far": 80,
+          "coverage_note": "",
+          "far_note": ""
+        },
+        "생산관리지역": {
+          "coverage": 20,
+          "far": 80,
+          "coverage_note": "(다만, 성장관리계획을 수립한 지역의 경우 30퍼센트 이하로 한다)",
+          "far_note": ""
+        },
+        "계획관리지역": {
+          "coverage": 40,
+          "far": 90,
+          "coverage_note": "(다만, 성장관리계획을 수립한 지역의 경우 50퍼센트 이하로 한다)",
+          "far_note": "(다만, 성장관리계획을 수립한 지역의 경우 110퍼센트 이하로 한다)"
+        },
+        "농림지역": {
+          "coverage": 20,
+          "far": 60,
+          "coverage_note": "",
+          "far_note": ""
+        },
+        "자연환경보전지역": {
+          "coverage": 20,
+          "far": 60,
+          "coverage_note": "",
+          "far_note": ""
+        }
+      },
+      "missing": {
+        "coverage": [],
+        "far": []
+      }
+    },
+    "대전광역시": {
+      "ordinance": {
+        "name": "대전광역시 도시계획 조례",
+        "org": "대전광역시",
+        "mst": "2110261",
+        "promulgation_no": "6595",
+        "effective": "2026-02-13",
+        "snapshot": "data/law_snapshots/ordinances/대전광역시_도시계획조례_20260213.txt",
+        "annex_snapshot": null,
+        "method": "article"
+      },
+      "zones": {
+        "제1종전용주거지역": {
+          "coverage": 50,
+          "far": 100,
+          "coverage_note": "",
+          "far_note": ""
+        },
+        "제2종전용주거지역": {
+          "coverage": 40,
+          "far": 120,
+          "coverage_note": "",
+          "far_note": ""
+        },
+        "제1종일반주거지역": {
+          "coverage": 60,
+          "far": 150,
+          "coverage_note": "",
+          "far_note": ""
+        },
+        "제2종일반주거지역": {
+          "coverage": 60,
+          "far": 200,
+          "coverage_note": "",
+          "far_note": ""
+        },
+        "제3종일반주거지역": {
+          "coverage": 50,
+          "far": 250,
+          "coverage_note": "",
+          "far_note": ""
+        },
+        "준주거지역": {
+          "coverage": 60,
+          "far": 400,
+          "coverage_note": "",
+          "far_note": ""
+        },
+        "중심상업지역": {
+          "coverage": 80,
+          "far": 1300,
+          "coverage_note": "(방화지구 안에서 「건축법」 제51조에 따라 내화구조 및 불연 재료로 하는 경우에는 90퍼센트 이하)",
+          "far_note": ""
+        },
+        "일반상업지역": {
+          "coverage": 70,
+          "far": 1100,
+          "coverage_note": "",
+          "far_note": ""
+        },
+        "근린상업지역": {
+          "coverage": 60,
+          "far": 700,
+          "coverage_note": "",
+          "far_note": ""
+        },
+        "유통상업지역": {
+          "coverage": 70,
+          "far": 900,
+          "coverage_note": "",
+          "far_note": ""
+        },
+        "전용공업지역": {
+          "coverage": 70,
+          "far": 300,
+          "coverage_note": "",
+          "far_note": ""
+        },
+        "일반공업지역": {
+          "coverage": 70,
+          "far": 350,
+          "coverage_note": "",
+          "far_note": ""
+        },
+        "준공업지역": {
+          "coverage": 70,
+          "far": 400,
+          "coverage_note": "",
+          "far_note": ""
+        },
+        "보전녹지지역": {
+          "coverage": 20,
+          "far": 60,
+          "coverage_note": "",
+          "far_note": "(취락지구인 경우에는 80퍼센트 이하)"
+        },
+        "생산녹지지역": {
+          "coverage": 20,
+          "far": 70,
+          "coverage_note": "",
+          "far_note": "(취락지구인 경우에는 80퍼센트 이하)"
+        },
+        "자연녹지지역": {
+          "coverage": 20,
+          "far": 80,
+          "coverage_note": "",
+          "far_note": "(도시계획시설 및 취락지구인 경우에는 100퍼센트 이하)"
+        },
+        "보전관리지역": {
+          "coverage": 20,
+          "far": 60,
+          "coverage_note": "",
+          "far_note": "(취락지구인 경우에는 80퍼센트 이하)"
+        },
+        "생산관리지역": {
+          "coverage": 20,
+          "far": 70,
+          "coverage_note": "",
+          "far_note": "(취락지구인 경우에는 80퍼센트 이하)"
+        },
+        "계획관리지역": {
+          "coverage": 40,
+          "far": 80,
+          "coverage_note": "",
+          "far_note": "(취락지구인 경우에는 100퍼센트 이하)"
+        },
+        "농림지역": {
+          "coverage": 20,
+          "far": 70,
+          "coverage_note": "",
+          "far_note": ""
+        },
+        "자연환경보전지역": {
+          "coverage": 20,
+          "far": 60,
+          "coverage_note": "",
+          "far_note": ""
+        }
+      },
+      "missing": {
+        "coverage": [],
+        "far": []
+      }
+    },
+    "울산광역시": {
+      "ordinance": {
+        "name": "울산광역시 도시계획 조례",
+        "org": "울산광역시",
+        "mst": "2120867",
+        "promulgation_no": "3264",
+        "effective": "2026-04-09",
+        "snapshot": "data/law_snapshots/ordinances/울산광역시_도시계획조례_20260409.txt",
+        "annex_snapshot": "data/law_snapshots/ordinances/울산광역시_도시계획조례_20260409_별표24건폐율및용적률제.txt",
+        "method": "annex-hwp"
+      },
+      "zones": {
+        "제1종전용주거지역": {
+          "coverage": 50,
+          "far": 100,
+          "coverage_note": "",
+          "far_note": ""
+        },
+        "제2종전용주거지역": {
+          "coverage": 50,
+          "far": 150,
+          "coverage_note": "",
+          "far_note": ""
+        },
+        "제1종일반주거지역": {
+          "coverage": 60,
+          "far": 150,
+          "coverage_note": "",
+          "far_note": ""
+        },
+        "제2종일반주거지역": {
+          "coverage": 60,
+          "far": 200,
+          "coverage_note": "",
+          "far_note": ""
+        },
+        "제3종일반주거지역": {
+          "coverage": 50,
+          "far": 300,
+          "coverage_note": "",
+          "far_note": ""
+        },
+        "준주거지역": {
+          "coverage": 70,
+          "far": 500,
+          "coverage_note": "",
+          "far_note": ""
+        },
+        "중심상업지역": {
+          "coverage": 80,
+          "far": 1300,
+          "coverage_note": "",
+          "far_note": ""
+        },
+        "일반상업지역": {
+          "coverage": 70,
+          "far": 1200,
+          "coverage_note": "",
+          "far_note": ""
+        },
+        "근린상업지역": {
+          "coverage": 60,
+          "far": 700,
+          "coverage_note": "",
+          "far_note": ""
+        },
+        "유통상업지역": {
+          "coverage": 70,
+          "far": 900,
+          "coverage_note": "",
+          "far_note": ""
+        },
+        "전용공업지역": {
+          "coverage": 70,
+          "far": 300,
+          "coverage_note": "",
+          "far_note": ""
+        },
+        "일반공업지역": {
+          "coverage": 70,
+          "far": 350,
+          "coverage_note": "",
+          "far_note": ""
+        },
+        "준공업지역": {
+          "coverage": 70,
+          "far": 400,
+          "coverage_note": "",
+          "far_note": ""
+        },
+        "보전녹지지역": {
+          "coverage": 20,
+          "far": 80,
+          "coverage_note": "",
+          "far_note": ""
+        },
+        "생산녹지지역": {
+          "coverage": 20,
+          "far": 100,
+          "coverage_note": "",
+          "far_note": ""
+        },
+        "자연녹지지역": {
+          "coverage": 20,
+          "far": 100,
+          "coverage_note": "",
+          "far_note": ""
+        },
+        "보전관리지역": {
+          "coverage": 20,
+          "far": 80,
+          "coverage_note": "",
+          "far_note": ""
+        },
+        "생산관리지역": {
+          "coverage": 20,
+          "far": 80,
+          "coverage_note": "",
+          "far_note": ""
+        },
+        "계획관리지역": {
+          "coverage": 40,
+          "far": 100,
+          "coverage_note": "",
+          "far_note": ""
+        },
+        "농림지역": {
+          "coverage": 20,
+          "far": 80,
+          "coverage_note": "",
+          "far_note": ""
+        },
+        "자연환경보전지역": {
+          "coverage": 20,
+          "far": 80,
+          "coverage_note": "",
+          "far_note": ""
+        }
+      },
+      "missing": {
+        "coverage": [],
+        "far": []
+      }
+    },
+    "세종특별자치시": {
+      "ordinance": {
+        "name": "세종특별자치시 도시계획 조례",
+        "org": "세종특별자치시",
+        "mst": "2186619",
+        "promulgation_no": "3053",
+        "effective": "2026-11-13",
+        "snapshot": "data/law_snapshots/ordinances/세종특별자치시_도시계획조례_20261113.txt",
+        "annex_snapshot": null,
+        "method": "article"
+      },
+      "zones": {
+        "제1종전용주거지역": {
+          "coverage": 50,
+          "far": 100,
+          "coverage_note": "",
+          "far_note": "다만, 해제지역은 해당 지구단위계획을 따른다"
+        },
+        "제2종전용주거지역": {
+          "coverage": 50,
+          "far": 150,
+          "coverage_note": "",
+          "far_note": "다만, 해제지역은 해당 지구단위계획을 따른다"
+        },
+        "제1종일반주거지역": {
+          "coverage": 60,
+          "far": 200,
+          "coverage_note": "",
+          "far_note": "다만, 해제지역은 해당 지구단위계획을 따른다"
+        },
+        "제2종일반주거지역": {
+          "coverage": 60,
+          "far": 250,
+          "coverage_note": "",
+          "far_note": "다만, 해제지역은 해당 지구단위계획을 따른다"
+        },
+        "제3종일반주거지역": {
+          "coverage": 50,
+          "far": 300,
+          "coverage_note": "",
+          "far_note": "다만, 해제지역은 해당 지구단위계획을 따른다"
+        },
+        "준주거지역": {
+          "coverage": 70,
+          "far": 400,
+          "coverage_note": "",
+          "far_note": "다만, 해제지역은 해당 지구단위계획을 따른다"
+        },
+        "중심상업지역": {
+          "coverage": 80,
+          "far": 1300,
+          "coverage_note": "",
+          "far_note": "다만, 해제지역은 해당 지구단위계획을 따른다"
+        },
+        "일반상업지역": {
+          "coverage": 80,
+          "far": 1100,
+          "coverage_note": "",
+          "far_note": "다만, 해제지역은 해당 지구단위계획을 따른다"
+        },
+        "근린상업지역": {
+          "coverage": 70,
+          "far": 700,
+          "coverage_note": "",
+          "far_note": "다만, 해제지역은 해당 지구단위계획을 따른다"
+        },
+        "유통상업지역": {
+          "coverage": 80,
+          "far": 900,
+          "coverage_note": "",
+          "far_note": "다만, 해제지역은 해당 지구단위계획을 따른다"
+        },
+        "전용공업지역": {
+          "coverage": 70,
+          "far": 300,
+          "coverage_note": "",
+          "far_note": "다만, 해제지역은 해당 지구단위계획을 따른다"
+        },
+        "일반공업지역": {
+          "coverage": 70,
+          "far": 350,
+          "coverage_note": "",
+          "far_note": "다만, 해제지역은 해당 지구단위계획을 따른다"
+        },
+        "준공업지역": {
+          "coverage": 70,
+          "far": 400,
+          "coverage_note": "",
+          "far_note": "다만, 해제지역은 해당 지구단위계획을 따른다"
+        },
+        "보전녹지지역": {
+          "coverage": 20,
+          "far": 80,
+          "coverage_note": "",
+          "far_note": ""
+        },
+        "생산녹지지역": {
+          "coverage": 20,
+          "far": 100,
+          "coverage_note": "다만, 성장관리계획을 수립한 지역의 경우 30퍼센트 이하의 범위에서 성장관리계획에 따른다",
+          "far_note": "다만, 해제지역은 해당 지구단위계획을 따른다"
+        },
+        "자연녹지지역": {
+          "coverage": 20,
+          "far": 100,
+          "coverage_note": "다만, 성장관리계획을 수립한 지역의 경우 30퍼센트 이하의 범위에서 성장관리계획에 따른다",
+          "far_note": "다만, 해제지역은 해당 지구단위계획을 따른다"
+        },
+        "보전관리지역": {
+          "coverage": 20,
+          "far": 80,
+          "coverage_note": "",
+          "far_note": ""
+        },
+        "생산관리지역": {
+          "coverage": 20,
+          "far": 80,
+          "coverage_note": "다만, 성장관리계획을 수립한 지역의 경우 30퍼센트 이하의 범위에서 성장관리계획에 따른다.(개정, 2016.10.31.)",
+          "far_note": ""
+        },
+        "계획관리지역": {
+          "coverage": 40,
+          "far": 100,
+          "coverage_note": "다만, 성장관리계획을 수립한 지역의 경우 50퍼센트 이하의 범위에서 성장관리계획에 따른다.(개정 2015. 7. 30.)",
+          "far_note": "다만, 성장관리계획을 수립한 지역에서는 125퍼센트 이하의 범위에서 성장관리계획에 따른다.(개정 2015. 7. 30.)"
+        },
+        "농림지역": {
+          "coverage": 20,
+          "far": 80,
+          "coverage_note": "다만, 성장관리계획을 수립한 지역의 경우 30퍼센트 이하의 범위에서 성장관리계획에 따른다",
+          "far_note": ""
+        },
+        "자연환경보전지역": {
+          "coverage": 20,
+          "far": 80,
+          "coverage_note": "",
+          "far_note": ""
+        }
+      },
+      "missing": {
+        "coverage": [],
+        "far": []
+      }
+    }
+  }
+}

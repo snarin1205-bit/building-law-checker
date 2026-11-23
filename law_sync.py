@@ -32,10 +32,25 @@ _ORDIN_QUERIES = {"parking": ["주차장 조례", "주차장"]}
 
 def sources():
     out = list(NATIONAL)
+    seen = set()
     for key, m in DJ_META.items():
+        seen.add((m["name"], m["org"]))
         out.append({"name": m["name"], "kind": "ordin", "org": m["org"],
                     "promulgation_no": m["promulgation_no"], "effective": m["effective"],
                     "queries": _ORDIN_QUERIES.get(key, [m["name"]])})
+    # 지역별 도시계획 조례(data/ordinance_zone_limits.json) — 대전 도시계획 조례 등 중복은 한 번만
+    try:
+        from ordinance_regions import load
+        for r in load()["regions"].values():
+            o = r["ordinance"]
+            if (o["name"], o["org"]) in seen:
+                continue
+            seen.add((o["name"], o["org"]))
+            out.append({"name": o["name"], "kind": "ordin", "org": o["org"],
+                        "promulgation_no": o["promulgation_no"], "effective": o["effective"],
+                        "queries": [o["name"]]})
+    except Exception:
+        pass
     return out
 
 

@@ -10,7 +10,9 @@ from law_core_v2 import (CORE_PACK_ID, route_laws, preview_area, far_counted_are
                          FAR_EXCLUSION_KEYS, sort_findings, findings_to_markdown,
                          findings_to_json, parking_required,
                          PARKING_RULES, PARKING_MANUAL_KEYS)
-from ordinance_daejeon import (DJ_ZONE_LIMITS, is_daejeon, zone_limits, parking_required_daejeon, DJ_PARKING_RULES,
+from ordinance_parse import CANON_ZONES
+from ordinance_regions import zone_limits_for, region_of
+from ordinance_daejeon import (is_daejeon, parking_required_daejeon, DJ_PARKING_RULES,
                                DJ_MANUAL_KEYS, DJ_UNDEFINED_KEYS, DJ_META, DJ_SUNLIGHT_NOTE, dj_sunlight_setback)
 
 st.set_page_config(page_title="현상설계 법규 분석 v2", page_icon="🏛️", layout="wide")
@@ -28,8 +30,8 @@ with st.form("site_form"):
         is_public = st.checkbox("공공건축물")
     with right:
         is_housing = st.checkbox("주택사업/정비사업")
-        manual_zone = st.selectbox("용도지역 직접 선택 (자동 조회가 안 될 때만, 대전 조례 기준)",
-                                   ["자동 조회 결과 사용"] + list(DJ_ZONE_LIMITS))
+        manual_zone = st.selectbox("용도지역 직접 선택 (자동 조회가 안 될 때만)",
+                                   ["자동 조회 결과 사용"] + list(CANON_ZONES))
         district_choice = st.selectbox("지구단위계획 적용 여부(수동 확인)", ["미확인", "적용", "비적용"])
         covered = st.number_input("계획 건축면적 (㎡)", min_value=0.0, value=0.0)
         far_area = st.number_input("용적률 산정용 연면적 (㎡, 검토값)", min_value=0.0, value=0.0)
@@ -107,20 +109,28 @@ if submitted:
 
     st.session_state["zones"] = zones
     st.session_state["address"] = address
-    if is_daejeon(address):
-        st.subheader("2-1. 대전광역시 조례 기준 (원문 연결)")
-        zl = zone_limits(zones)
+    zl = zone_limits_for(address, zones)
+    if zl["status"] == "NO_REGION":
+        if address.strip():
+            st.subheader("2-1. 지자체 조례 기준")
+            st.info("이 주소의 지자체 조례는 아직 연결되어 있지 않습니다(연결 지역: 서울·부산·대구·인천·광주·대전·울산·세종 도시계획 조례). "
+                    "건폐율·용적률은 해당 지자체 도시계획 조례 원문으로 직접 확인하세요.")
+    else:
+        st.subheader(f"2-1. {zl['region']} 조례 기준 (원문 연결)")
         if zl["matches"]:
-            st.table([{"용도지역": m["zone"], "건폐율 상한(%)": m["coverage_max_pct"],
-                       "용적률 상한(%)": m["far_max_pct"], "조문 단서": m["note"]} for m in zl["matches"]])
+            st.table([{"용도지역": m["zone"],
+                       "건폐율 상한(%)": m["coverage_max_pct"] if m["coverage_max_pct"] is not None else "미확인",
+                       "용적률 상한(%)": m["far_max_pct"] if m["far_max_pct"] is not None else "미확인",
+                       "조문 단서": m["note"]} for m in zl["matches"]])
         if zl["unmatched"]:
-            st.warning("조례 표와 매칭되지 않은 용도지역(미확인): " + ", ".join(zl["unmatched"]))
+            st.warning("조례 원문에서 값을 읽지 못한(또는 매칭되지 않은) 용도지역 — 미확인: " + ", ".join(zl["unmatched"]))
         if not zones:
             st.info("용도지역을 조회하지 못해 건폐율·용적률 상한을 표시하지 않습니다.")
-        for c in zl["caveats"]:
+        for c in zl["caveats"] + zl["notes"]:
             st.caption("※ " + c)
-        st.caption(f"근거: {DJ_META['urban']['name']} {DJ_META['urban']['cites']} "
-                   f"(공포 {DJ_META['urban']['promulgation_no']}, 시행 {DJ_META['urban']['effective']})")
+        L = zl["law"]
+        st.caption(f"근거: {L['name']} (공포 {L['promulgation_no']}, 시행 {L['effective']}) — 원문 사본 {L['snapshot']}")
+    if is_daejeon(address):
         with st.expander("일조(정북) 이격거리 — 법 하한과 대전 조례 비교"):
             st.write(DJ_SUNLIGHT_NOTE)
             hs = st.text_input("건축물 부분 높이(m), 쉼표로 여러 개", value="10, 14, 20", key="sun_heights")
@@ -146,7 +156,7 @@ if submitted:
 if "site_snapshot" in st.session_state:
     data = st.session_state["site_snapshot"]
     addr = st.session_state.get("address", "")
-    zl_all = zone_limits(st.session_state.get("zones", [])) if is_daejeon(addr) else None
+    zl_all = zone_limits_for(addr, st.session_state.get("zones", []))
     with st.expander("부설주차장 산정"):
         mode_j = st.radio("적용 기준", ["자동(주소 기준)", "대전광역시 조례(별표 6)", "주차장법 시행령 별표 1만"],
                           horizontal=True, key="pk_mode")
@@ -182,12 +192,12 @@ if "site_snapshot" in st.session_state:
             res = far_counted_area(total_fa, ex_in)
             st.json(res)
             st.caption("제외 가능 여부·범위는 조문·조례로 확인 후, 결과를 위 '용적률 산정용 연면적'에 반영하세요.")
-    # 용도지역이 하나로 특정되고 대전 조례 표에 있으면 그 상한을 기본값으로 제안(사용자가 바꿀 수 있음)
+    # 용도지역이 하나로 특정되고 조례 원문에서 두 값을 모두 읽었으면 그 상한을 기본값으로 제안(사용자가 바꿀 수 있음)
     d_cov, d_far, sig = 0.0, 0.0, "none"
-    if zl_all and len(zl_all["matches"]) == 1 and not zl_all["unmatched"]:
+    if (zl_all["status"] == "OK" and len(zl_all["matches"]) == 1 and not zl_all["unmatched"]):
         m0 = zl_all["matches"][0]
-        d_cov, d_far, sig = float(m0["coverage_max_pct"]), float(m0["far_max_pct"]), m0["zone"]
-        st.caption(f"대전광역시 도시계획 조례 상한을 기본값으로 제안했습니다({sig}). 단서·특례는 위 표의 주의사항을 확인하세요.")
+        d_cov, d_far, sig = float(m0["coverage_max_pct"]), float(m0["far_max_pct"]), f"{zl_all['region']}_{m0['zone']}"
+        st.caption(f"{zl_all['law']['name']} 상한을 기본값으로 제안했습니다({m0['zone']}). 단서·특례는 위 표의 주의사항을 확인하세요.")
     c1, c2 = st.columns(2)
     with c1:
         coverage = st.number_input("검토용 건폐율 (%)", min_value=0.0, max_value=100.0, value=d_cov, step=1.0,
@@ -207,4 +217,4 @@ if "site_snapshot" in st.session_state:
         st.json(preview)
         st.warning("WITHIN_INPUT_LIMIT는 입력된 비율에 대한 산술 판정일 뿐, 법적 적합 판정이 아닙니다.")
 st.divider()
-st.caption("현재 제한: 조례는 대전광역시·유성구만 연결(다른 지자체는 직접 확인). 정북일조는 법 하한과 대전 조례 문언을 비교한 안전측 값만 제시(조례 개정 여부 미확인), 3D 검토·피난 산정 미구현. 법령 개정 감지는 law_sync.py 실행. 기존 app.py는 레거시로 보존.")
+st.caption("현재 제한: 조례는 광역시·특별시 8곳(서울·부산·대구·인천·광주·대전·울산·세종)의 도시계획 조례 건폐율·용적률과 대전의 주차·일조만 연결(그 밖의 지자체·조례는 직접 확인). 정북일조는 법 하한과 대전 조례 문언을 비교한 안전측 값만 제시(조례 개정 여부 미확인), 3D 검토·피난 산정 미구현. 법령 개정 감지는 law_sync.py 실행. 기존 app.py는 레거시로 보존.")
