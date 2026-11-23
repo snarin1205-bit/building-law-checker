@@ -11,7 +11,7 @@ from law_core_v2 import (CORE_PACK_ID, route_laws, preview_area, far_counted_are
                          findings_to_json, parking_required,
                          PARKING_RULES, PARKING_MANUAL_KEYS)
 from ordinance_daejeon import (DJ_ZONE_LIMITS, is_daejeon, zone_limits, parking_required_daejeon, DJ_PARKING_RULES,
-                               DJ_MANUAL_KEYS, DJ_UNDEFINED_KEYS, DJ_META, DJ_SUNLIGHT_NOTE)
+                               DJ_MANUAL_KEYS, DJ_UNDEFINED_KEYS, DJ_META, DJ_SUNLIGHT_NOTE, dj_sunlight_setback)
 
 st.set_page_config(page_title="현상설계 법규 분석 v2", page_icon="🏛️", layout="wide")
 st.title("현상설계 법규 분석 · Core v2")
@@ -121,8 +121,19 @@ if submitted:
             st.caption("※ " + c)
         st.caption(f"근거: {DJ_META['urban']['name']} {DJ_META['urban']['cites']} "
                    f"(공포 {DJ_META['urban']['promulgation_no']}, 시행 {DJ_META['urban']['effective']})")
-        with st.expander("일조(정북) — 조례 문언과 확정 불가 사유"):
+        with st.expander("일조(정북) 이격거리 — 법 하한과 대전 조례 비교"):
             st.write(DJ_SUNLIGHT_NOTE)
+            hs = st.text_input("건축물 부분 높이(m), 쉼표로 여러 개", value="10, 14, 20", key="sun_heights")
+            rows = []
+            for tok in [t.strip() for t in hs.split(",") if t.strip()]:
+                r = dj_sunlight_setback(tok)
+                if r["status"] == "PREVIEW":
+                    rows.append({"높이(m)": r["height_m"], "법 하한(m)": r["law_min_m"],
+                                 "조례 문언(m)": r["ordinance_text_m"], "안전측(m)": r["conservative_m"],
+                                 "법·조례 불일치": "예" if r["conflict"] else "아니오"})
+            if rows:
+                st.table(rows)
+                st.caption("정북 인접 대지의 용도지역이 전용·일반주거지역이 아니면 적용되지 않습니다(영 제86조제2항). 확정값이 아니라 안전측 제시입니다.")
         st.caption("유성구 조례(주차장·도시계획)에는 건폐율·용적률·부설주차장 설치기준 수치가 없고 "
                    "광역시 조례를 따릅니다. 구 조례의 인근설치 300m, 설치의무 면제 규정은 주차 계산 결과의 참고 항목에 표시됩니다.")
 
@@ -196,4 +207,4 @@ if "site_snapshot" in st.session_state:
         st.json(preview)
         st.warning("WITHIN_INPUT_LIMIT는 입력된 비율에 대한 산술 판정일 뿐, 법적 적합 판정이 아닙니다.")
 st.divider()
-st.caption("현재 제한: 조례는 대전광역시·유성구만 연결(다른 지자체는 직접 확인). 정북일조 이격거리는 법·조례 개정 과도기라 미확정, 3D 검토·피난 산정 미구현. 법령 개정 감지는 law_sync.py 실행. 기존 app.py는 레거시로 보존.")
+st.caption("현재 제한: 조례는 대전광역시·유성구만 연결(다른 지자체는 직접 확인). 정북일조는 법 하한과 대전 조례 문언을 비교한 안전측 값만 제시(조례 개정 여부 미확인), 3D 검토·피난 산정 미구현. 법령 개정 감지는 law_sync.py 실행. 기존 app.py는 레거시로 보존.")

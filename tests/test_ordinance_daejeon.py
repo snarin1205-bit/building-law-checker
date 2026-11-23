@@ -3,7 +3,7 @@ import re
 import unittest
 
 import law_sync
-from ordinance_daejeon import (DJ_ZONE_LIMITS, DJ_PARKING_RULES, DJ_META, zone_limits, is_daejeon,
+from ordinance_daejeon import (dj_sunlight_setback, DJ_ZONE_LIMITS, DJ_PARKING_RULES, DJ_META, zone_limits, is_daejeon,
                                parking_required_daejeon)
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent / "data" / "law_snapshots"
@@ -74,6 +74,26 @@ class SnapshotTables(unittest.TestCase):
     def test_meta_effective_dates_recorded(self):
         self.assertEqual(DJ_META["parking"]["effective"], "2025-12-26")
         self.assertEqual(DJ_META["urban"]["effective"], "2026-02-13")
+
+
+class SunlightCompare(unittest.TestCase):
+    def test_conflict_only_in_10_to_17m_band(self):
+        r5 = dj_sunlight_setback(5)
+        self.assertEqual((r5["law_min_m"], r5["ordinance_text_m"], r5["conflict"]), (1.5, 1.5, False))
+        r14 = dj_sunlight_setback(14)  # 법 5m, 조례 문언 7m
+        self.assertEqual((r14["law_min_m"], r14["ordinance_text_m"], r14["conservative_m"], r14["conflict"]),
+                         (5.0, 7.0, 7.0, True))
+        r20 = dj_sunlight_setback(20)
+        self.assertEqual((r20["law_min_m"], r20["ordinance_text_m"], r20["conflict"]), (10.0, 10.0, False))
+
+    def test_conservative_is_never_below_law(self):
+        for h in (1, 9.9, 10, 10.1, 12, 16.9, 17, 17.1, 25, 40):
+            r = dj_sunlight_setback(h)
+            self.assertGreaterEqual(r["conservative_m"], r["law_min_m"], h)
+
+    def test_invalid_height_unknown(self):
+        self.assertEqual(dj_sunlight_setback(0)["status"], "UNKNOWN")
+        self.assertEqual(dj_sunlight_setback("x")["status"], "UNKNOWN")
 
 
 class ZoneLimits(unittest.TestCase):
