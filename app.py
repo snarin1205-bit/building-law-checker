@@ -6,6 +6,7 @@ This app is for early design-stage screening, not permitting conclusions.
 import streamlit as st
 from building_law_checker import LAND_API_KEY
 from vworld_client import lookup_site, relay_configured
+from site_map import render_maps
 from law_core_v2 import (CORE_PACK_ID, route_laws, preview_area, far_counted_area,
                          FAR_EXCLUSION_KEYS, sort_findings, findings_to_markdown,
                          findings_to_json, parking_required,
@@ -17,6 +18,11 @@ from sunlight_regions import setback as sun_setback, note as sun_note, region_da
 from parking_regions import build as pk_build, parking_required_region, region_data as pk_region_data, follows_decree as pk_follows
 from ordinance_daejeon import (is_daejeon, parking_required_daejeon, DJ_PARKING_RULES,
                                DJ_MANUAL_KEYS, DJ_UNDEFINED_KEYS, DJ_META, DJ_SUNLIGHT_NOTE, dj_sunlight_setback)
+
+@st.cache_data(show_spinner="지도를 불러오는 중...", ttl=3600)
+def _maps(x, y):
+    return render_maps(x, y)
+
 
 st.set_page_config(page_title="현상설계 법규 분석 v2", page_icon="🏛️", layout="wide")
 st.title("현상설계 법규 분석 · Core v2")
@@ -50,6 +56,7 @@ if submitted:
     zones = []
     parcel_area = None
     parcel_jimok = None
+    map_xy = None
     in_gb = bool(gb_manual)
     st.subheader("1. 기본 자료 확인")
     if not LAND_API_KEY and not relay_configured():
@@ -64,6 +71,7 @@ if submitted:
             elif g["status"] == "NOT_FOUND":
                 st.warning("주소를 찾지 못했습니다(지번·도로명 모두 결과 없음). 주소 표기를 확인하세요.")
             else:
+                map_xy = (g["x"], g["y"])
                 if pc["status"] == "OK":
                     st.success(f"조회된 필지: {pc['addr']} (PNU {pc['pnu']}) — 입력한 주소와 같은 필지인지 확인하세요.")
                 elif pc["status"] == "ERROR":
@@ -118,6 +126,21 @@ if submitted:
     if not site_area and parcel_area:
         site_area = parcel_area
         st.info(f"대지면적을 입력하지 않아 토지대장 면적 {parcel_area:,.1f}㎡를 사용합니다. 대장 면적은 건축법상 대지면적(도로 편입·공공용지 제외 등)과 다를 수 있습니다.")
+    if map_xy:
+        st.subheader("1-0. 지적도 · 수치지도")
+        mp = _maps(map_xy[0], map_xy[1])
+        if mp["status"] == "ERROR":
+            st.warning(f"지도 생성 실패: {mp['error']}")
+        else:
+            if mp["error"]:
+                st.warning(mp["error"])
+            m1, m2 = st.columns(2)
+            m1.image(mp["cadastral"], caption="지적도 — 빨간 선이 조회된 필지, 주황 선은 인접 필지 경계(지번 표기)", width="stretch")
+            m2.image(mp["digital"], caption="수치지도(일반 지도)", width="stretch")
+            st.caption("출처: 국토교통부 브이월드. 경계는 참고용이며 측량 성과가 아닙니다.")
+            d1, d2 = st.columns(2)
+            d1.download_button("지적도 PNG 저장", mp["cadastral"], file_name="cadastral.png", mime="image/png")
+            d2.download_button("수치지도 PNG 저장", mp["digital"], file_name="digital_map.png", mime="image/png")
     st.subheader("1-1. 대지 개요 · 건폐율 · 용적률 (1단계 요약)")
     _zl = zone_limits_for(address, zones) if zones else {"status": "NO_ZONE", "matches": []}
     if _zl["status"] == "NO_REGION":
