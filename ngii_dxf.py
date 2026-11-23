@@ -149,10 +149,10 @@ def clip_pieces(points, closed, window):
     return out
 
 
-def clip_to_dxf(sheet_names, window, origin_xy=(0.0, 0.0), note=None, include_symbols=False, include_text=True, stats=None):
+def clip_to_dxf(sheet_names, window, origin_xy=(0.0, 0.0), note=None, include_symbols=False, include_text=False, stats=None):
     """저장 도엽에서 창과 겹치는 도형을 새 DXF 로 복사하고 origin_xy 를 빼서 이동. 반환 (bytes, 복사한 도형 수).
     include_symbols=False: 점 기호(INSERT 블록·POINT — 논·학교·수목 표시 등 아이콘)를 빼고 선·면 도형만 담는다.
-    include_text=False: 문자(표고·지명·건물명 주기)를 뺀다. stats 딕셔너리를 주면 {"symbols_skipped","text_skipped"} 를 채운다."""
+    include_text=False(기본): 문자(표고·지명·건물명 주기)를 뺀다. stats 딕셔너리를 주면 {"symbols_skipped","text_skipped"} 를 채운다."""
     stats = stats if stats is not None else {}
     stats.update({"symbols_skipped": 0, "text_skipped": 0})
     import ezdxf
@@ -235,7 +235,7 @@ def clip_to_dxf(sheet_names, window, origin_xy=(0.0, 0.0), note=None, include_sy
     return s.getvalue().encode("utf-8"), n
 
 
-def export_ngii(x, y, polygon=None, margin_m=200, epsg="EPSG:5186", origin="parcel", include_symbols=False, include_text=True):
+def export_ngii(x, y, polygon=None, margin_m=200, epsg="EPSG:5186", origin="parcel", include_symbols=False, include_text=False):
     """주소 좌표(경위도)로 저장 도엽에서 CAD 생성. 반환 {"status": "OK"|"NO_SHEET"|"EMPTY"|"ERROR", "dxf", "sheets", "count", "origin", "error"}."""
     out = {"status": "ERROR", "dxf": None, "sheets": [], "count": 0, "origin": {"mode": origin, "x": 0.0, "y": 0.0}, "stats": {}, "error": None}
     try:
