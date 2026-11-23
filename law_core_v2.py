@@ -45,7 +45,6 @@ _ZONE_RULES = (
     ("상업", "상업"), ("공업", "공업"), ("녹지", "녹지"),
     ("관리지역", "관리"), ("농림", "농림"), ("자연환경보전", "자연환경보전"),
 )
-_NORTH_LIGHT_ZONES = ("전용주거", "일반주거")
 
 
 def classify_zones(zone_names: Optional[Sequence[str]]):
@@ -100,18 +99,11 @@ def route_laws(building_use: str = "", site_address: str = "",
         "대지에 지구단위계획 결정·지침 존재 여부",
         "건축선·높이·배치·용도·경관 등", "결정도서 및 시행지침 원문 확인")
 
-    if zinfo["known"]:
-        if any(c in _NORTH_LIGHT_ZONES for c in zinfo["categories"]):
-            sun_p = "REQUIRED"
-            sun_cond = ("전용·일반주거지역 해당 → 정북방향 일조 확보 이격 검토 대상 "
-                        "(필지가 여러 지역에 걸치면 면적·위치별 검토)")
-        else:
-            sun_p = "CONDITIONAL"
-            sun_cond = ("조회된 용도지역은 정북일조 대상이 아닐 수 있으나, 공동주택 인접대지 채광 등 "
-                        "별도 이격 규정과 지구단위계획·조례 확인 필요")
-    else:
-        sun_p = "CONDITIONAL"
-        sun_cond = "용도지역 미확인: 정북 방향, 경계·높이·인접대지 조건 확인"
+    # 용도지역별 일조 적용 여부는 건축법 시행령 제86조 원문 대조 전이므로 단정하지 않는다.
+    sun_p = "CONDITIONAL"
+    zone_txt = (", ".join(zinfo["categories"]) if zinfo["known"] else "미확인")
+    sun_cond = (f"용도지역({zone_txt})별 적용 여부는 건축법 시행령 제86조 원문과 조례로 확인 "
+                "(정북방향, 경계·높이·인접대지 조건 포함)")
     add("건축법 일조·높이·대지안의 공지", sun_p, sun_cond,
         "건축 가능한 3차원 외피", "단일 높이÷2 공식 사용 금지; 위치·높이별 검토",
         LAW_URLS["건축법 시행령"])
@@ -180,7 +172,7 @@ def preview_area(site_area, building_area, floor_area_for_far, coverage_pct, far
     return out
 
 
-# 시행령상 용적률 산정 제외 대표 항목. 실제 제외 여부·범위는 조문·조례로 별도 확인.
+# 사용자 입력 편의용 항목 이름. 법정 제외 항목 목록과 대조되지 않았다(원문 미대조).
 FAR_EXCLUSION_KEYS = {
     "underground": "지하층 면적",
     "above_ground_parking": "지상층 주차용 면적(부속용도)",
@@ -210,7 +202,7 @@ def far_counted_area(total_floor_area, exclusions=None):
             "excluded_m2": round(excluded, 2),
             "far_counted_area_m2": round(total - excluded, 2),
             "excluded_detail": {FAR_EXCLUSION_KEYS[k]: round(v, 2) for k, v in ex.items() if v},
-            "reason": "제외 가능 여부·범위는 시행령 조문과 조례로 별도 확인 필요"}
+            "reason": "항목은 원문 미대조 - 제외 가능 여부·범위는 건축법 시행령 제119조 등 원문으로 확인 필요"}
 
 
 _PRIORITY_ORDER = {"REQUIRED": 0, "CONDITIONAL": 1, "UNKNOWN": 2, "LOW_PRIORITY": 3}
@@ -240,3 +232,58 @@ def findings_to_json(findings, context=None):
                        "context": context or {},
                        "findings": [f.as_dict() for f in sort_findings(findings)]},
                       ensure_ascii=False, indent=2)
+
+
+# ---------------------------------------------------------------------------
+# 부설주차장 산정 (사전 검토용)
+# 법정 기준값(㎡당 1대)은 코드에 내장하지 않는다. 주차장법 시행령 별표 1과 해당
+# 지자체 조례 원문에서 확인한 값을 사용자가 용도별로 직접 입력해야 계산한다.
+# ---------------------------------------------------------------------------
+def parking_required(items, sqm_per_space=None, rounding="total"):
+    """용도별 (시설면적 / 입력 기준값) 산술 시나리오. 기준값 미입력 용도는 계산하지 않는다.
+
+    items: [(용도명, 시설면적㎡), ...]
+    sqm_per_space: {용도명: 원문·조례에서 확인한 '㎡당 1대' 값}
+    rounding: 'total'(합산 후 올림) | 'per_use'(용도별 올림 후 합산). 끝수 처리 규정은
+              원문 확인 전이므로 두 방식 값을 모두 반환하고 selected만 선택값이다.
+    """
+    sqm_per_space = sqm_per_space or {}
+    if rounding not in ("total", "per_use"):
+        return {"status": "UNKNOWN", "reason": "rounding은 total 또는 per_use"}
+    if not items:
+        return {"status": "UNKNOWN", "reason": "용도·시설면적 입력 없음"}
+    rows, missing = [], []
+    for use, area in items:
+        try:
+            a = float(area)
+        except (TypeError, ValueError):
+            return {"status": "UNKNOWN", "reason": f"면적 입력 오류: {use}"}
+        if not math.isfinite(a) or a < 0:
+            return {"status": "UNKNOWN", "reason": f"면적은 0 이상이어야 함: {use}"}
+        if use not in sqm_per_space or sqm_per_space[use] in (None, "", 0):
+            missing.append(use)
+            continue
+        try:
+            base = float(sqm_per_space[use])
+        except (TypeError, ValueError):
+            return {"status": "UNKNOWN", "reason": f"기준값 입력 오류: {use}"}
+        if not math.isfinite(base) or base <= 0:
+            return {"status": "UNKNOWN", "reason": f"기준값은 양수여야 함: {use}"}
+        exact = a / base
+        rows.append({"use": use, "area_m2": round(a, 2), "sqm_per_space": base,
+                     "exact": round(exact, 4), "ceil": math.ceil(round(exact, 6))})
+    if missing:
+        return {"status": "UNKNOWN",
+                "reason": "기준값 미입력 용도 있음 — 주차장법 시행령 별표 1·지자체 조례 원문에서 확인 후 입력",
+                "missing_basis_uses": missing, "computed_partial": rows,
+                "source_url": LAW_URLS["주차장법"]}
+    exact_total = sum(r["exact"] for r in rows)
+    total_ceil = math.ceil(round(exact_total, 6))
+    per_use_ceil = sum(r["ceil"] for r in rows)
+    return {"status": "PREVIEW", "rows": rows,
+            "exact_total": round(exact_total, 4),
+            "ceil_of_total": total_ceil, "sum_of_use_ceils": per_use_ceil,
+            "selected": total_ceil if rounding == "total" else per_use_ceil,
+            "rounding_differs": total_ceil != per_use_ceil,
+            "reason": "입력 기준값의 출처·시행일, 끝수 처리, 주차산정면적 범위는 원문으로 확인 필요",
+            "source_url": LAW_URLS["주차장법"]}

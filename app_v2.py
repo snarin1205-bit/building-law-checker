@@ -8,7 +8,7 @@ from building_law_checker import (get_coordinates, get_land_use, get_district_pl
                                   get_region, LAND_API_KEY)
 from law_core_v2 import (CORE_PACK_ID, route_laws, preview_area, far_counted_area,
                          FAR_EXCLUSION_KEYS, sort_findings, findings_to_markdown,
-                         findings_to_json)
+                         findings_to_json, parking_required)
 
 st.set_page_config(page_title="현상설계 법규 분석 v2", page_icon="🏛️", layout="wide")
 st.title("현상설계 법규 분석 · Core v2")
@@ -86,6 +86,27 @@ if submitted:
 
 if "site_snapshot" in st.session_state:
     data = st.session_state["site_snapshot"]
+    with st.expander("부설주차장 산정 시나리오 (기준값 직접 입력)"):
+        st.caption("법정 기준값은 내장하지 않습니다. 주차장법 시행령 별표 1과 해당 지자체 조례 원문에서 "
+                   "확인한 '㎡당 1대' 값을 용도별로 입력하세요. 기준값이 없으면 계산하지 않습니다.")
+        n = st.number_input("용도 개수", min_value=1, max_value=8, value=1, step=1, key="pk_n")
+        pk_items, pk_basis = [], {}
+        for i in range(int(n)):
+            c1, c2, c3 = st.columns(3)
+            u = c1.text_input("용도명", key=f"pk_u{i}")
+            ar = c2.number_input("시설면적 (㎡)", min_value=0.0, value=0.0, key=f"pk_a{i}")
+            bs = c3.number_input("기준 (㎡당 1대)", min_value=0.0, value=0.0, key=f"pk_b{i}")
+            if u.strip():
+                pk_items.append((u.strip(), ar))
+                if bs > 0:
+                    pk_basis[u.strip()] = bs
+        mode = st.radio("끝수 처리", ["total", "per_use"], horizontal=True,
+                        format_func=lambda m: "합산 후 올림" if m == "total" else "용도별 올림 후 합산")
+        if pk_items:
+            pk = parking_required(pk_items, pk_basis, mode)
+            st.json(pk)
+            if pk.get("rounding_differs"):
+                st.warning("끝수 처리 방식에 따라 대수가 달라집니다. 적용 규정을 확인하세요.")
     with st.expander("용적률 산정용 연면적 계산기 (제외면적 직접 입력)"):
         total_fa = st.number_input("전체 연면적 (㎡)", min_value=0.0, value=0.0, key="total_fa")
         ex_in = {k: st.number_input(label + " (㎡)", min_value=0.0, value=0.0, key="ex_" + k)

@@ -1,7 +1,8 @@
 import json
 import unittest
 from law_core_v2 import (route_laws, preview_area, classify_zones, far_counted_area,
-                         findings_to_markdown, findings_to_json, sort_findings)
+                         findings_to_markdown, findings_to_json, sort_findings,
+                         parking_required)
 
 
 def pri(**kw):
@@ -50,12 +51,6 @@ class CoreV2Tests(unittest.TestCase):
         self.assertFalse(classify_zones([])["known"])
         self.assertFalse(classify_zones(None)["known"])
 
-    def test_north_light_depends_on_zone(self):
-        key = "건축법 일조·높이·대지안의 공지"
-        self.assertEqual(pri(zone_names=["제1종전용주거지역"])[key], "REQUIRED")
-        self.assertEqual(pri(zone_names=["일반상업지역"])[key], "CONDITIONAL")
-        self.assertEqual(pri()[key], "CONDITIONAL")  # 미확인은 해당없음 아님
-
     def test_zone_overlap_flagged(self):
         p = pri(zone_names=["제2종일반주거지역", "일반상업지역"])
         self.assertEqual(p["용도지역 중첩·걸침 검토"], "REQUIRED")
@@ -86,6 +81,44 @@ class CoreV2Tests(unittest.TestCase):
     def test_source_urls_present_for_statutes(self):
         f = {x.law_group: x for x in route_laws()}
         self.assertTrue(f["건축법·건축법 시행령"].source_url.startswith("https://www.law.go.kr/"))
+
+    # --- parking (기준값은 사용자 입력만 사용) ---
+    def test_parking_requires_basis(self):
+        r = parking_required([("A", 410)])
+        self.assertEqual(r["status"], "UNKNOWN")
+        self.assertEqual(r["missing_basis_uses"], ["A"])
+
+    def test_parking_ceil_not_floor(self):
+        r = parking_required([("A", 410)], {"A": 200})
+        self.assertEqual(r["status"], "PREVIEW")
+        self.assertEqual(r["selected"], 3)  # 2.05 -> 올림
+
+    def test_parking_rounding_modes_differ(self):
+        items = [("A", 250), ("B", 100)]
+        basis = {"A": 200, "B": 400}  # 1.25 + 0.25
+        r = parking_required(items, basis)
+        self.assertEqual(r["ceil_of_total"], 2)
+        self.assertEqual(r["sum_of_use_ceils"], 3)
+        self.assertTrue(r["rounding_differs"])
+        self.assertEqual(parking_required(items, basis, "per_use")["selected"], 3)
+
+    def test_parking_partial_missing_is_unknown(self):
+        r = parking_required([("A", 100), ("B", 100)], {"A": 100})
+        self.assertEqual(r["status"], "UNKNOWN")
+        self.assertEqual(r["missing_basis_uses"], ["B"])
+
+    def test_parking_invalid_inputs(self):
+        self.assertEqual(parking_required([])["status"], "UNKNOWN")
+        self.assertEqual(parking_required([("A", -1)], {"A": 100})["status"], "UNKNOWN")
+        self.assertEqual(parking_required([("A", 100)], {"A": -5})["status"], "UNKNOWN")
+        self.assertEqual(parking_required([("A", 100)], {"A": 100}, "x")["status"], "UNKNOWN")
+
+    def test_parking_float_noise(self):
+        self.assertEqual(parking_required([("A", 600)], {"A": 200})["selected"], 3)
+
+    def test_north_light_not_asserted_by_zone(self):
+        key = "건축법 일조·높이·대지안의 공지"
+        self.assertEqual(pri(zone_names=["제1종전용주거지역"])[key], "CONDITIONAL")
 
 
 if __name__ == "__main__":
