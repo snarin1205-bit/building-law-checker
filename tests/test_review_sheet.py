@@ -326,5 +326,24 @@ class ReferenceTable(unittest.TestCase):
         self.assertIn("| 법규명 및 조항 | 대상 | 법적 기준 | 설계기준 |", md)
 
 
+class RowParams(unittest.TestCase):
+    def test_params_carry_source_values_for_other_tools(self):
+        rows = {r.item: r for r in build_review(ReviewInput(address="충청남도 계룡시 엄사면 번영3길 30", zones=("제2종일반주거지역",), use="업무시설", site_area=13098.5, total_floor_area=10200.0))}
+        self.assertEqual(rows["건폐율 → 최대 건축면적"].params, {"bcr": 60})
+        self.assertEqual(rows["용적률 → 최대 연면적"].params, {"far": 250})
+        self.assertEqual(rows["조경"].params, {})   # 계룡은 건축 조례 조경 데이터 미연결 → 값 없음(추정 금지)
+        self.assertEqual(json.loads(review_to_json(list(rows.values())))["rows"][0].get("params") is not None, True)
+
+    def test_greenbelt_params(self):
+        rows = {r.item: r for r in build_review(ReviewInput(address="대전광역시 대덕구 연축동 산 1", zones=("자연녹지지역",), use="운수시설(여객용)", site_area=100000.0, in_greenbelt=True))}
+        self.assertEqual(rows["건폐율 → 최대 건축면적"].params, {"bcr": 60})
+        self.assertEqual(rows["용적률 → 최대 연면적"].params, {"far": 300})
+        self.assertEqual(rows["높이(층수)"].params, {"max_floors": 5})
+
+    def test_landscape_pct_daejeon(self):
+        rows = {r.item: r for r in build_review(ReviewInput(address="대전광역시 서구 둔산로 100", zones=("중심상업지역",), use="업무시설", site_area=1000.0, total_floor_area=13000.0))}
+        self.assertEqual(rows["조경 → 최소 조경면적"].params, {"landscape_pct": 15})
+
+
 if __name__ == "__main__":
     unittest.main()

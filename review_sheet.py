@@ -56,6 +56,7 @@ class Row:
     source: Optional[str] = None  # 원문 사본 경로
     key: Optional[str] = None     # 기계가 읽는 식별자(예: max_floor_area)
     value: Optional[float] = None  # 그 수치(㎡·대 등)
+    params: dict = field(default_factory=dict)  # 다른 도구가 읽는 원문 기준값(예: {"bcr": 60}, {"far": 250}, {"max_floors": 5}, {"landscape_pct": 15})
 
     def as_dict(self):
         return asdict(self)
@@ -211,6 +212,8 @@ def _fmt_parking(res):
 def build_review(inp: ReviewInput):
     rows: List[Row] = []
     vals = {}
+    gb_max_floors = None
+    landscape_pct = None
     spec = USES.get(inp.use) or USES["그 밖의 시설(방송통신·발전·자동차 관련 등)"]
     region = region_of(inp.address)
     zones = [z for z in (inp.zones or ()) if z]
@@ -238,6 +241,7 @@ def build_review(inp: ReviewInput):
     law_name = f"{region} 도시계획 조례" if region else "지자체 도시계획 조례"
     if gb_ok:
         A = GB["annex2"]; g_ = A["general"]; dec_ = GB["decree"]
+        gb_max_floors = g_["max_floors"]
         cov, far = g_["coverage_pct"], g_["far_pct"]
         basis_gb = f"개발제한구역법 제12조, 시행령 제22조·[별표 2] 제2호가목 (시행 {dec_['effective_iso']})"
         hs = A.get("housing") or []
@@ -475,6 +479,7 @@ def build_review(inp: ReviewInput):
              "영 제27조제1항 면제 대상(공장·축사·산업단지 등)과 조례가 정하는 면제 건축물은 별도 확인"] + land["special_notes"]
         if floor_area and inp.site_area:
             pct = pct_at(tiers, floor_area)
+            landscape_pct = pct
             vals["landscape_min_area"] = round(inp.site_area * pct / 100, 2)
             applied = f"연면적 {_n(floor_area)}㎡({floor_label}) → 대지면적의 {pct}% = {_n(inp.site_area * pct / 100)}㎡ 이상"
             status = "조건부" if assumed_far_area else "확정"
@@ -562,6 +567,14 @@ def build_review(inp: ReviewInput):
         k = _ITEM_KEY.get(r.item)
         if k and k in vals:
             r.key, r.value = k, vals[k]
+        if r.item == "건폐율 → 최대 건축면적" and cov is not None:
+            r.params = {"bcr": cov}
+        elif r.item == "용적률 → 최대 연면적" and far is not None:
+            r.params = {"far": far}
+        elif r.item == "높이(층수)" and gb_max_floors is not None:
+            r.params = {"max_floors": gb_max_floors}
+        elif r.item == "조경 → 최소 조경면적" and landscape_pct is not None:
+            r.params = {"landscape_pct": landscape_pct}
     return rows
 
 
