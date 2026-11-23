@@ -2,7 +2,8 @@ import json
 import unittest
 from law_core_v2 import (route_laws, preview_area, classify_zones, far_counted_area,
                          findings_to_markdown, findings_to_json, sort_findings,
-                         parking_required, PARKING_RULES, PARKING_LAW_META)
+                         parking_required, PARKING_RULES, PARKING_LAW_META,
+                         FAR_EXCLUSION_KEYS, FAR_LAW_META)
 
 
 def pri(**kw):
@@ -150,6 +151,40 @@ class CoreV2Tests(unittest.TestCase):
     def test_north_light_not_asserted_by_zone(self):
         key = "건축법 일조·높이·대지안의 공지"
         self.assertEqual(pri(zone_names=["제1종전용주거지역"])[key], "CONDITIONAL")
+
+
+    # --- 건축법령 사본 대조 ---
+    def _snap(self, name):
+        import pathlib
+        return (pathlib.Path(__file__).resolve().parent.parent / "data" / "law_snapshots" / name
+                ).read_text(encoding="utf-8")
+
+    def test_far_exclusions_match_decree_art119(self):
+        import re
+        flat = re.sub(r"\s+", "", self._snap("bldg_decree_art119_20261112.txt"))
+        for token in ("지하층의면적", "지상층의주차용(해당건축물의부속용도인경우만해당한다)으로쓰는면적",
+                      "제34조제3항및제4항에따라초고층건축물과준초고층건축물에설치하는피난안전구역의면적",
+                      "제40조제4항제2호에따라건축물의경사지붕아래에설치하는대피공간의면적",
+                      "다.삭제", "라.삭제"):
+            self.assertIn(token, flat, token)
+        self.assertEqual(len(FAR_EXCLUSION_KEYS), 4)
+        self.assertEqual(FAR_LAW_META["effective_date"], "2026-11-12")
+
+    def test_decree_art86_exceptions_in_snapshot(self):
+        import re
+        flat = re.sub(r"\s+", "", self._snap("bldg_decree_art86_20261112.txt"))
+        self.assertIn("정북방향의인접대지가전용주거지역이나일반주거지역이아닌용도지역에해당하는경우", flat)
+        self.assertIn("너비20미터이상의도로", flat)
+
+    def test_act_art61_snapshot_marked_pending(self):
+        head = self._snap("bldg_act_art61_PENDING_20270212.txt")[:600]
+        self.assertIn("현행 시행본 아님", head)
+
+    def test_north_light_finding_cites_decree_not_numbers(self):
+        f = {x.law_group: x for x in route_laws(zone_names=["제2종일반주거지역"])}
+        c = f["건축법 일조·높이·대지안의 공지"].condition
+        self.assertIn("2027-02-12", c)
+        self.assertEqual(f["건축법 일조·높이·대지안의 공지"].priority, "CONDITIONAL")
 
 
 if __name__ == "__main__":

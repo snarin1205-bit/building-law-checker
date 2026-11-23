@@ -99,11 +99,14 @@ def route_laws(building_use: str = "", site_address: str = "",
         "대지에 지구단위계획 결정·지침 존재 여부",
         "건축선·높이·배치·용도·경관 등", "결정도서 및 시행지침 원문 확인")
 
-    # 용도지역별 일조 적용 여부는 건축법 시행령 제86조 원문 대조 전이므로 단정하지 않는다.
+    # 일조: 정북방향 이격 본체는 건축법 제61조제1항. 확보한 제61조 텍스트는 시행 전(2027-02-12) 버전이라
+    # 용도지역으로 REQUIRED/LOW를 단정하지 않는다. 영 제86조(시행 2026-11-12)의 예외·공동주택 규정만 근거로 안내.
     sun_p = "CONDITIONAL"
     zone_txt = (", ".join(zinfo["categories"]) if zinfo["known"] else "미확인")
-    sun_cond = (f"용도지역({zone_txt})별 적용 여부는 건축법 시행령 제86조 원문과 조례로 확인 "
-                "(정북방향, 경계·높이·인접대지 조건 포함)")
+    sun_cond = (f"용도지역({zone_txt}). 정북방향 이격은 건축법 제61조제1항·조례 — 확인한 제61조 텍스트는 "
+                "조문시행일 2027-02-12 버전이라 현행 시행본 별도 확인 필요. 건축법 시행령 제86조제2항(시행 2026-11-12) "
+                "예외: 정북 인접대지가 전용·일반주거지역이 아닌 경우, 지구단위계획구역 등에서 너비 20m 이상 도로에 접한 경우, "
+                "건축협정 등. 공동주택은 같은 영 제86조제3항 채광 기준을 별도 검토")
     add("건축법 일조·높이·대지안의 공지", sun_p, sun_cond,
         "건축 가능한 3차원 외피", "단일 높이÷2 공식 사용 금지; 위치·높이별 검토",
         LAW_URLS["건축법 시행령"])
@@ -172,12 +175,16 @@ def preview_area(site_area, building_area, floor_area_for_far, coverage_pct, far
     return out
 
 
-# 사용자 입력 편의용 항목 이름. 법정 제외 항목 목록과 대조되지 않았다(원문 미대조).
+# 건축법 시행령 제119조제1항제4호(시행 2026-11-12): 용적률 산정 시 연면적에서 제외하는 면적.
+# 다목·라목은 '삭제'. 사본: data/law_snapshots/bldg_decree_art119_20261112.txt
+FAR_LAW_META = {"law": "건축법 시행령 제119조제1항제4호", "promulgation_no": "36817",
+                "effective_date": "2026-11-12",
+                "snapshot": "data/law_snapshots/bldg_decree_art119_20261112.txt"}
 FAR_EXCLUSION_KEYS = {
-    "underground": "지하층 면적",
-    "above_ground_parking": "지상층 주차용 면적(부속용도)",
-    "refuge_safety_zone": "초고층·준초고층 피난안전구역 면적",
-    "roof_refuge_space": "경사지붕 아래 대피공간 면적",
+    "underground": "지하층의 면적 (4호 가목)",
+    "above_ground_parking": "지상층의 주차용(해당 건축물의 부속용도인 경우만 해당)으로 쓰는 면적 (4호 나목)",
+    "refuge_safety_zone": "제34조제3항·제4항에 따라 초고층·준초고층 건축물에 설치하는 피난안전구역의 면적 (4호 마목)",
+    "roof_refuge_space": "제40조제4항제2호에 따라 건축물의 경사지붕 아래에 설치하는 대피공간의 면적 (4호 바목)",
 }
 
 
@@ -202,7 +209,8 @@ def far_counted_area(total_floor_area, exclusions=None):
             "excluded_m2": round(excluded, 2),
             "far_counted_area_m2": round(total - excluded, 2),
             "excluded_detail": {FAR_EXCLUSION_KEYS[k]: round(v, 2) for k, v in ex.items() if v},
-            "reason": "항목은 원문 미대조 - 제외 가능 여부·범위는 건축법 시행령 제119조 등 원문으로 확인 필요"}
+            "law": FAR_LAW_META,
+            "reason": "제외 항목은 시행령 제119조제1항제4호 원문 기준. 연면적 자체는 각 층 바닥면적의 합계이며 바닥면적 산입 제외(같은 항 제3호)와 용적률 한도(법 제56조·조례)는 별도 확인"}
 
 
 _PRIORITY_ORDER = {"REQUIRED": 0, "CONDITIONAL": 1, "UNKNOWN": 2, "LOW_PRIORITY": 3}
