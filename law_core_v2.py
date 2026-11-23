@@ -40,6 +40,8 @@ class Finding:
 
 
 # (판별 키워드, 분류) — 구체적인 명칭이 먼저 매칭되도록 순서 유지
+_NORTH_LIGHT_ZONES = ("전용주거", "일반주거")
+
 _ZONE_RULES = (
     ("전용주거", "전용주거"), ("일반주거", "일반주거"), ("준주거", "준주거"),
     ("상업", "상업"), ("공업", "공업"), ("녹지", "녹지"),
@@ -99,17 +101,26 @@ def route_laws(building_use: str = "", site_address: str = "",
         "대지에 지구단위계획 결정·지침 존재 여부",
         "건축선·높이·배치·용도·경관 등", "결정도서 및 시행지침 원문 확인")
 
-    # 일조: 정북방향 이격 본체는 건축법 제61조제1항. 확보한 제61조 텍스트는 시행 전(2027-02-12) 버전이라
-    # 용도지역으로 REQUIRED/LOW를 단정하지 않는다. 영 제86조(시행 2026-11-12)의 예외·공동주택 규정만 근거로 안내.
-    sun_p = "CONDITIONAL"
+    # 일조: 건축법 제61조제1항(현행: 시행 2026-11-12, 제21880호) — 전용·일반주거지역 안 건축물이 대상.
+    # 단서(영 제86조제2항, 시행 2026-11-12): 정북 인접 대지가 전용·일반주거지역이 아닌 경우, 일정 구역의 20m 이상 도로 접함, 건축협정 등.
     zone_txt = (", ".join(zinfo["categories"]) if zinfo["known"] else "미확인")
-    sun_cond = (f"용도지역({zone_txt}). 정북방향 이격은 건축법 제61조제1항·조례 — 확인한 제61조 텍스트는 "
-                "조문시행일 2027-02-12 버전이라 현행 시행본 별도 확인 필요. 건축법 시행령 제86조제2항(시행 2026-11-12) "
-                "예외: 정북 인접대지가 전용·일반주거지역이 아닌 경우, 지구단위계획구역 등에서 너비 20m 이상 도로에 접한 경우, "
-                "건축협정 등. 공동주택은 같은 영 제86조제3항 채광 기준을 별도 검토")
+    exceptions = ("영 제86조제2항 예외: 정북 인접 대지가 전용·일반주거지역이 아닌 경우, 지구단위계획구역·경관지구 등에서 "
+                  "너비 20m 이상 도로에 접한 경우, 건축협정구역 등 — 인접 대지 용도지역까지 확인")
+    if zinfo["known"] and any(c in _NORTH_LIGHT_ZONES for c in zinfo["categories"]):
+        sun_p = "REQUIRED"
+        sun_cond = (f"용도지역({zone_txt}) → 건축법 제61조제1항 대상(전용·일반주거지역 안 건축물). 정북방향 인접 대지경계선에서 "
+                    "높이 10m 이하 부분 1.5m 이상, 10m 초과 17m 이하 부분 5m 이상, 17m 초과 부분 높이의 1/2 이상 이격하되 "
+                    "거리는 지방자치단체 조례로 정함(법 하한). " + exceptions)
+    elif zinfo["known"]:
+        sun_p = "CONDITIONAL"
+        sun_cond = (f"용도지역({zone_txt})은 법 제61조제1항 정북일조 대상(전용·일반주거지역)이 아님. 다만 공동주택 채광 등 별도 "
+                    "이격(영 제86조제3항), 지구단위계획·조례를 확인")
+    else:
+        sun_p = "CONDITIONAL"
+        sun_cond = ("용도지역 미확인: 전용·일반주거지역이면 건축법 제61조제1항 정북일조 대상. " + exceptions)
     add("건축법 일조·높이·대지안의 공지", sun_p, sun_cond,
-        "건축 가능한 3차원 외피", "단일 높이÷2 공식 사용 금지; 위치·높이별 검토",
-        LAW_URLS["건축법 시행령"])
+        "건축 가능한 3차원 외피", "단일 높이÷2 공식 사용 금지; 부분 높이별로 이격거리 검토(north_light_setback)",
+        LAW_URLS["건축법"])
 
     add("피난·방화·소방", "CONDITIONAL",
         "용도·층수·면적·수용인원·구조 조건에 따라 달라짐",
@@ -316,7 +327,7 @@ def _multi_house(area):
 
 
 def parking_required(items, ordinance_div=None, rules=None, manual=None, undefined=None,
-                     law_meta=None, notes=None):
+                     law_meta=None, notes=None, special=None):
     """부설주차장 법정 대수 산술 시나리오(신축).
 
     items: [(규칙키, 수량), ...] — 규칙표(rules)의 키. 수량 단위는 규칙표 참고.
@@ -335,7 +346,7 @@ def parking_required(items, ordinance_div=None, rules=None, manual=None, undefin
     manual_hit = [k for k, _ in items if k in manual]
     if manual_hit:
         return {"status": "UNKNOWN",
-                "reason": "표 제5호 시설물은 「주택건설기준 등에 관한 규정」 제27조로 별도 산정",
+                "reason": "원문이 별도 규정(예: 「주택건설기준 등에 관한 규정」)을 인용하거나 단순 기준이 아니어서 자동 산정하지 않음",
                 "manual_only": [manual[k] for k in manual_hit], "law": meta}
     undef_hit = [k for k, _ in items if k in undefined]
     if undef_hit:
@@ -352,7 +363,9 @@ def parking_required(items, ordinance_div=None, rules=None, manual=None, undefin
             return {"status": "UNKNOWN", "reason": f"수량은 0 이상이어야 함: {key}"}
         no, label, unit, mult, div = rules[key]
         basis = "법령·조례 원문"
-        if key == "단독주택":
+        if special and key in special:
+            v = special[key](q)
+        elif key == "단독주택":
             v = _detached(q)
         elif key == "다중주택":
             v = _multi_house(q)
@@ -399,3 +412,33 @@ def parking_required(items, ordinance_div=None, rules=None, manual=None, undefin
             "scope": "신축 산술 시나리오. 용도변경·증축(비고 5·7), 경형자동차 인정(비고 12) 등 미반영",
             "notes": list(notes or []),
             "law": meta, "source_url": LAW_URLS["주차장법"]}
+
+
+# ---------------------------------------------------------------------------
+# 정북일조 이격거리 — 건축법 제61조제1항 (현행: 시행 2026-11-12, 법률 제21880호)
+# 사본: data/law_snapshots/bldg_act_art61_20261112.txt
+# 법은 '조례로 정하는 거리'를 아래 범위(하한)에서 정하도록 하므로 이 값은 법 하한이며 조례가 더 클 수 있다.
+# ---------------------------------------------------------------------------
+NORTH_LIGHT_LAW_META = {"law": "건축법 제61조제1항", "promulgation_no": "21880", "effective_date": "2026-11-12",
+                        "snapshot": "data/law_snapshots/bldg_act_art61_20261112.txt"}
+
+
+def north_light_law_minimum(part_height_m):
+    """건축물 한 부분의 높이(m)에 대한 정북방향 이격거리의 법 하한(m).
+    10m 이하 → 1.5, 10m 초과 17m 이하 → 5, 17m 초과 → 높이의 1/2. 부분 높이는 지표면 기준 그 부분의 높이."""
+    try:
+        h = float(part_height_m)
+    except (TypeError, ValueError):
+        return {"status": "UNKNOWN", "reason": "높이 입력 오류"}
+    if not math.isfinite(h) or h <= 0:
+        return {"status": "UNKNOWN", "reason": "높이는 0보다 커야 함"}
+    if h <= 10:
+        v, tier = 1.5, "높이 10미터 이하인 부분 (제1호)"
+    elif h <= 17:
+        v, tier = 5.0, "높이 10미터 초과 17미터 이하인 부분 (제2호)"
+    else:
+        v, tier = h / 2, "높이 17미터를 초과하는 부분 (제3호, 부분 높이의 2분의 1)"
+    return {"status": "PREVIEW", "height_m": h, "law_min_m": round(v, 3), "tier": tier,
+            "law": NORTH_LIGHT_LAW_META,
+            "reason": "법 하한. 거리는 지방자치단체 조례가 정하며, 정북 인접 대지가 전용·일반주거지역이 아닌 경우 등 "
+                      "영 제86조제2항 예외는 반영하지 않음"}

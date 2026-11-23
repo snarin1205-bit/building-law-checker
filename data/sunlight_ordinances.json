@@ -1,0 +1,234 @@
+{
+  "generated": "2026-11-23",
+  "note": "건축 조례 일조 조문에서 읽은 값만(수정 금지, tools/build_sunlight_data.py 로 재생성).",
+  "regions": {
+    "서울특별시": {
+      "ordinance": {
+        "name": "서울특별시 건축 조례",
+        "org": "서울특별시",
+        "mst": "2171799",
+        "promulgation_no": "10170",
+        "effective": "2026-11-12",
+        "snapshot": "data/law_snapshots/sunlight/서울특별시_건축조례_일조_20261112.txt",
+        "article": "제35조(일조 등의 확보를 위한 건축물의 높이제한)"
+      },
+      "status": "ok",
+      "tiers": [
+        {
+          "kind": "le",
+          "max": 10.0,
+          "dist": 1.5
+        },
+        {
+          "kind": "band",
+          "lo": 10.0,
+          "hi": 17.0,
+          "dist": 5.0
+        },
+        {
+          "kind": "gt",
+          "above": 17.0,
+          "num": 1,
+          "den": 2
+        }
+      ],
+      "cites": "법 제61조제1항",
+      "proviso": ""
+    },
+    "부산광역시": {
+      "ordinance": {
+        "name": "부산광역시 건축 조례",
+        "org": "부산광역시",
+        "mst": "2112259",
+        "promulgation_no": "7894",
+        "effective": "2026-02-25",
+        "snapshot": "data/law_snapshots/sunlight/부산광역시_건축조례_일조_20260225.txt",
+        "article": "제43조(일조 등의 확보를 위한 건축물의 높이제한)"
+      },
+      "status": "ok",
+      "tiers": [
+        {
+          "kind": "le",
+          "max": 10.0,
+          "dist": 1.5
+        },
+        {
+          "kind": "gt",
+          "above": 10.0,
+          "num": 1,
+          "den": 2
+        }
+      ],
+      "cites": "영 제86조제1항",
+      "proviso": ""
+    },
+    "대구광역시": {
+      "ordinance": {
+        "name": "대구광역시 건축 조례",
+        "org": "대구광역시",
+        "mst": "2181437",
+        "promulgation_no": "6551",
+        "effective": "2026-11-12",
+        "snapshot": "data/law_snapshots/sunlight/대구광역시_건축조례_일조_20261112.txt",
+        "article": "제40조(일조 등의 확보를 위한 건축물의 높이제한)"
+      },
+      "status": "ok",
+      "tiers": [
+        {
+          "kind": "le",
+          "max": 10.0,
+          "dist": 1.5
+        },
+        {
+          "kind": "band",
+          "lo": 10.0,
+          "hi": 17.0,
+          "dist": 5.0
+        },
+        {
+          "kind": "gt",
+          "above": 17.0,
+          "num": 1,
+          "den": 2
+        }
+      ],
+      "cites": "법 제61조제1항",
+      "proviso": ""
+    },
+    "인천광역시": {
+      "ordinance": {
+        "name": "인천광역시 건축 조례",
+        "org": "인천광역시",
+        "mst": "2150259",
+        "promulgation_no": "7764",
+        "effective": "2026-07-13",
+        "snapshot": "data/law_snapshots/sunlight/인천광역시_건축조례_일조_20260713.txt",
+        "article": "제32조 (일조 등의 확보를 위한 건축물의 높이제한)"
+      },
+      "status": "ok",
+      "tiers": [
+        {
+          "kind": "le",
+          "max": 10.0,
+          "dist": 1.5
+        },
+        {
+          "kind": "gt",
+          "above": 10.0,
+          "num": 1,
+          "den": 2
+        }
+      ],
+      "cites": "영 제86조제1항",
+      "proviso": "다만, 담장ㆍ연면적 10제곱미터 이하인 부속건축물 및 영 제119조제1항제5호에 따라 높이에 산입되지 아니하는 부분의 경우에는 그러하지 아니하다."
+    },
+    "광주광역시": {
+      "ordinance": {
+        "name": "광주광역시 건축 조례",
+        "org": "(구)광주광역시",
+        "mst": "2084489",
+        "promulgation_no": "6642",
+        "effective": "2025-11-11",
+        "snapshot": "data/law_snapshots/sunlight/광주광역시_건축조례_일조_20251111.txt",
+        "article": "제35조(일조 등의 확보를 위한 건축물의 높이제한)"
+      },
+      "status": "ok",
+      "tiers": [
+        {
+          "kind": "le",
+          "max": 10.0,
+          "dist": 1.5
+        },
+        {
+          "kind": "gt",
+          "above": 10.0,
+          "num": 1,
+          "den": 2
+        }
+      ],
+      "cites": "영 제86조제1항",
+      "proviso": ""
+    },
+    "대전광역시": {
+      "ordinance": {
+        "name": "대전광역시 건축 조례",
+        "org": "대전광역시",
+        "mst": "2177567",
+        "promulgation_no": "6659",
+        "effective": "2026-10-08",
+        "snapshot": "data/law_snapshots/sunlight/대전광역시_건축조례_일조_20261008.txt",
+        "article": "제43조(일조 등의 확보를 위한 건축물의 높이 제한)"
+      },
+      "status": "ok",
+      "tiers": [
+        {
+          "kind": "le",
+          "max": 10.0,
+          "dist": 1.5
+        },
+        {
+          "kind": "gt",
+          "above": 10.0,
+          "num": 1,
+          "den": 2
+        }
+      ],
+      "cites": "영 제86조제1항",
+      "proviso": ""
+    },
+    "울산광역시": {
+      "ordinance": {
+        "name": "울산광역시 건축 조례",
+        "org": "울산광역시",
+        "mst": "2081597",
+        "promulgation_no": "3181",
+        "effective": "2025-09-25",
+        "snapshot": "data/law_snapshots/sunlight/울산광역시_건축조례_일조_20250925.txt",
+        "article": "제55조(일조 등의 확보를 위한 건축물의 높이제한)"
+      },
+      "status": "ok",
+      "tiers": [
+        {
+          "kind": "le",
+          "max": 10.0,
+          "dist": 1.5
+        },
+        {
+          "kind": "gt",
+          "above": 10.0,
+          "num": 1,
+          "den": 2
+        }
+      ],
+      "cites": "영 제86조제1항",
+      "proviso": "다만, 담장, 연면적 10제곱미터 이하인 부속건축물 및 영 제119조제1항제5호다목 및 라목에 따라 높이에 산입하지 아니하는 부분의 경우에는 그러하지 아니한다."
+    },
+    "세종특별자치시": {
+      "ordinance": {
+        "name": "세종특별자치시 건축 조례",
+        "org": "세종특별자치시",
+        "mst": "2163009",
+        "promulgation_no": "3029",
+        "effective": "2026-08-18",
+        "snapshot": "data/law_snapshots/sunlight/세종특별자치시_건축조례_일조_20260818.txt",
+        "article": "제40조(일조 등의 확보를 위한 건축물의 높이 제한)"
+      },
+      "status": "ok",
+      "tiers": [
+        {
+          "kind": "le",
+          "max": 10.0,
+          "dist": 1.5
+        },
+        {
+          "kind": "gt",
+          "above": 10.0,
+          "num": 1,
+          "den": 2
+        }
+      ],
+      "cites": "영 제86조제1항",
+      "proviso": "다만, 예정지역 등 내에 획지형 단독주택용지 또는 블록형 단독주택용지에서의 건축물의 각 부분은 정남방향으로의 인접대지경계선으로부터 다음 각 호에서 정하는 거리 이상을 띄어야 한다.(개정, 2018. 12. 10.)"
+    }
+  }
+}

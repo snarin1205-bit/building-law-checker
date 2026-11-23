@@ -3,7 +3,7 @@ import unittest
 from law_core_v2 import (route_laws, preview_area, classify_zones, far_counted_area,
                          findings_to_markdown, findings_to_json, sort_findings,
                          parking_required, PARKING_RULES, PARKING_LAW_META,
-                         FAR_EXCLUSION_KEYS, FAR_LAW_META)
+                         FAR_EXCLUSION_KEYS, FAR_LAW_META, north_light_law_minimum, NORTH_LIGHT_LAW_META)
 
 
 def pri(**kw):
@@ -148,10 +148,13 @@ class CoreV2Tests(unittest.TestCase):
         self.assertEqual(parking_required([("기타", -1)])["status"], "UNKNOWN")
         self.assertEqual(parking_required([("기타", "abc")])["status"], "UNKNOWN")
 
-    def test_north_light_not_asserted_by_zone(self):
+    def test_north_light_priority_follows_zone(self):
         key = "건축법 일조·높이·대지안의 공지"
-        self.assertEqual(pri(zone_names=["제1종전용주거지역"])[key], "CONDITIONAL")
-
+        self.assertEqual(pri(zone_names=["제1종전용주거지역"])[key], "REQUIRED")
+        self.assertEqual(pri(zone_names=["제2종일반주거지역"])[key], "REQUIRED")
+        self.assertEqual(pri(zone_names=["준주거지역"])[key], "CONDITIONAL")
+        self.assertEqual(pri(zone_names=["일반상업지역"])[key], "CONDITIONAL")
+        self.assertEqual(pri()[key], "CONDITIONAL")  # 미확인은 해당없음이 아님
 
     # --- 건축법령 사본 대조 ---
     def _snap(self, name):
@@ -176,15 +179,28 @@ class CoreV2Tests(unittest.TestCase):
         self.assertIn("정북방향의인접대지가전용주거지역이나일반주거지역이아닌용도지역에해당하는경우", flat)
         self.assertIn("너비20미터이상의도로", flat)
 
-    def test_act_art61_snapshot_marked_pending(self):
-        head = self._snap("bldg_act_art61_PENDING_20270212.txt")[:600]
-        self.assertIn("현행 시행본 아님", head)
+    def test_act_art61_current_snapshot_matches_law_minimums(self):
+        import re
+        t = re.sub(r"\s+", "", self._snap("bldg_act_art61_20261112.txt"))
+        for token in ("높이10미터이하인부분:인접대지경계선으로부터1.5미터이상",
+                      "높이10미터초과17미터이하인부분:인접대지경계선으로부터5미터이상",
+                      "높이17미터를초과하는부분:인접대지경계선으로부터해당건축물각부분높이의2분의1이상",
+                      "해당지방자치단체의조례로정하는거리이상"):
+            self.assertIn(token, t, token)
+        self.assertEqual(NORTH_LIGHT_LAW_META["effective_date"], "2026-11-12")
 
-    def test_north_light_finding_cites_decree_not_numbers(self):
+    def test_north_light_law_minimum_tiers(self):
+        for h, v in ((5, 1.5), (10, 1.5), (10.01, 5.0), (14, 5.0), (17, 5.0), (17.01, 8.505), (20, 10.0), (30, 15.0)):
+            self.assertAlmostEqual(north_light_law_minimum(h)["law_min_m"], v, places=3, msg=str(h))
+        for bad in (0, -3, "x", None, float("nan")):
+            self.assertEqual(north_light_law_minimum(bad)["status"], "UNKNOWN")
+
+    def test_north_light_finding_text(self):
         f = {x.law_group: x for x in route_laws(zone_names=["제2종일반주거지역"])}
         c = f["건축법 일조·높이·대지안의 공지"].condition
-        self.assertIn("2027-02-12", c)
-        self.assertEqual(f["건축법 일조·높이·대지안의 공지"].priority, "CONDITIONAL")
+        self.assertIn("제61조제1항", c)
+        self.assertIn("5m 이상", c)
+        self.assertIn("영 제86조제2항", c)
 
 
 if __name__ == "__main__":
