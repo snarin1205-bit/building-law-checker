@@ -25,42 +25,10 @@
   ],
   "parking_failed": [
     {
-      "org": "강원특별자치도 고성군",
-      "name": "고성군 주차장 설치 및 관리 조례",
-      "error": "NotOleFileError: not an OLE2 structured storage file"
-    },
-    {
-      "org": "강원특별자치도 고성군",
-      "reason": "설치기준 별표를 찾지 못함",
-      "tried": [
-        "고성군 주차장 설치 및 관리 조례"
-      ]
-    },
-    {
-      "org": "강원특별자치도 양구군",
-      "reason": "설치기준 별표를 찾지 못함",
-      "tried": [
-        "양구군 주차장 설치 및 관리조례"
-      ]
-    },
-    {
-      "org": "강원특별자치도 영월군",
-      "name": "영월군 주차장 설치 및 관리 조례",
-      "error": "NotOleFileError: not an OLE2 structured storage file"
-    },
-    {
       "org": "강원특별자치도 영월군",
       "reason": "설치기준 별표를 찾지 못함",
       "tried": [
         "영월군 주차장 설치 및 관리 조례"
-      ]
-    },
-    {
-      "org": "강원특별자치도 평창군",
-      "reason": "설치기준 별표를 찾지 못함",
-      "tried": [
-        "평창군 주차장 설치 및 관리 조례",
-        "평창군 대관령휴게소 주차장 이용료 징수 조례"
       ]
     },
     {
@@ -70,18 +38,6 @@
       "total": 7
     },
     {
-      "org": "경기도 구리시",
-      "name": "구리시 주차장 조례",
-      "error": "NotOleFileError: not an OLE2 structured storage file"
-    },
-    {
-      "org": "경기도 구리시",
-      "reason": "설치기준 별표를 찾지 못함",
-      "tried": [
-        "구리시 주차장 조례"
-      ]
-    },
-    {
       "org": "경기도 동두천시",
       "reason": "설치기준 별표를 찾지 못함",
       "tried": [
@@ -89,22 +45,10 @@
       ]
     },
     {
-      "org": "경기도 시흥시",
-      "name": "시흥시 주차장 설치 및 관리 조례",
-      "ok_categories": 3,
-      "total": 5
-    },
-    {
       "org": "경기도 안산시",
       "name": "안산시 주차장 조례",
       "ok_categories": 2,
       "total": 3
-    },
-    {
-      "org": "경기도 양평군",
-      "name": "양평군 주차장 조례",
-      "ok_categories": 4,
-      "total": 5
     },
     {
       "org": "경기도 여주시",
@@ -114,65 +58,16 @@
       ]
     },
     {
-      "org": "경기도 연천군",
-      "name": "연천군 주차장 설치조례",
-      "error": "NotOleFileError: not an OLE2 structured storage file"
-    },
-    {
-      "org": "경기도 연천군",
-      "reason": "설치기준 별표를 찾지 못함",
-      "tried": [
-        "연천군 주차장 설치조례"
-      ]
-    },
-    {
-      "org": "경기도 파주시",
-      "name": "파주시 주차장 설치 및 관리 조례",
-      "ok_categories": 0,
-      "total": 11
-    },
-    {
       "org": "경기도 하남시",
       "name": "하남시 주차장 조례",
       "ok_categories": 2,
       "total": 5
     },
     {
-      "org": "경상남도 거제시",
-      "name": "거제시 주차장 조례",
-      "error": "NotOleFileError: not an OLE2 structured storage file"
-    },
-    {
-      "org": "경상남도 거제시",
-      "reason": "설치기준 별표를 찾지 못함",
-      "tried": [
-        "거제시 주차장 조례"
-      ]
-    },
-    {
-      "org": "경상남도 양산시",
-      "name": "양산시 주차장 설치 및 관리조례",
-      "ok_categories": 4,
-      "total": 8
-    },
-    {
       "org": "경상남도 의령군",
       "name": "의령군 주차장 조례",
       "ok_categories": 0,
       "total": 0
-    },
-    {
-      "org": "경상남도 통영시",
-      "name": "통영시 주차장 조례",
-      "ok_categories": 3,
-      "total": 10
-    },
-    {
-      "org": "경상남도 함양군",
-      "reason": "설치기준 별표를 찾지 못함",
-      "tried": [
-        "함양군 주차장 설치 및 관리 조례"
-      ]
     },
     {
       "org": "경상남도 합천군",
@@ -182,23 +77,10 @@
       ]
     },
     {
-      "org": "경상북도 경주시",
-      "name": "경주시 주차장 조례",
-      "ok_categories": 0,
-      "total": 9
-    },
-    {
       "org": "경상북도 문경시",
       "reason": "설치기준 별표를 찾지 못함",
       "tried": [
         "문경시 주차장 조례"
-      ]
-    },
-    {
-      "org": "경상북도 상주시",
-      "reason": "설치기준 별표를 찾지 못함",
-      "tried": [
-        "상주시 주차장 조례"
       ]
     },
     {
@@ -208,90 +90,10 @@
       "total": 0
     },
     {
-      "org": "경상북도 울릉군",
-      "name": "울릉군 주차장 조례",
-      "error": "NotOleFileError: not an OLE2 structured storage file"
-    },
-    {
-      "org": "경상북도 울릉군",
-      "reason": "설치기준 별표를 찾지 못함",
-      "tried": [
-        "울릉군 주차장 조례"
-      ]
-    },
-    {
-      "org": "경상북도 울진군",
-      "name": "울진군주차장조례",
-      "error": "NotOleFileError: not an OLE2 structured storage file"
-    },
-    {
-      "org": "경상북도 울진군",
-      "reason": "설치기준 별표를 찾지 못함",
-      "tried": [
-        "울진군주차장조례"
-      ]
-    },
-    {
-      "org": "경상북도 칠곡군",
-      "name": "칠곡군 주차장 조례",
-      "ok_categories": 0,
-      "total": 11
-    },
-    {
-      "org": "전북특별자치도 부안군",
-      "reason": "설치기준 별표를 찾지 못함",
-      "tried": [
-        "부안군 주차장 조례"
-      ]
-    },
-    {
-      "org": "전북특별자치도 전주시",
-      "name": "전주시 주차장 조례",
-      "error": "NotOleFileError: not an OLE2 structured storage file"
-    },
-    {
-      "org": "전북특별자치도 전주시",
-      "reason": "설치기준 별표를 찾지 못함",
-      "tried": [
-        "전주시 이륜자동차 주차장 설치 및 관리 조례",
-        "전주시 주차장 조례"
-      ]
-    },
-    {
-      "org": "충청남도 공주시",
-      "name": "공주시 주차장 조례",
-      "error": "NotOleFileError: not an OLE2 structured storage file"
-    },
-    {
-      "org": "충청남도 공주시",
-      "reason": "설치기준 별표를 찾지 못함",
-      "tried": [
-        "공주시 주차장 조례"
-      ]
-    },
-    {
-      "org": "충청남도 부여군",
-      "name": "부여군 주차장 조례",
-      "error": "NotOleFileError: not an OLE2 structured storage file"
-    },
-    {
       "org": "충청남도 부여군",
       "reason": "설치기준 별표를 찾지 못함",
       "tried": [
         "부여군 주차장 조례"
-      ]
-    },
-    {
-      "org": "충청남도 서산시",
-      "name": "서산시 주차장 조례",
-      "ok_categories": 0,
-      "total": 0
-    },
-    {
-      "org": "충청남도 서천군",
-      "reason": "설치기준 별표를 찾지 못함",
-      "tried": [
-        "서천군 주차장 조례"
       ]
     },
     {
@@ -303,46 +105,6 @@
       ]
     },
     {
-      "org": "충청남도 청양군",
-      "reason": "설치기준 별표를 찾지 못함",
-      "tried": [
-        "청양군 주차장 설치 조례"
-      ]
-    },
-    {
-      "org": "충청남도 태안군",
-      "reason": "설치기준 별표를 찾지 못함",
-      "tried": [
-        "태안군 주차장 조례"
-      ]
-    },
-    {
-      "org": "충청북도 단양군",
-      "name": "단양군 주차장 조례",
-      "error": "NotOleFileError: not an OLE2 structured storage file"
-    },
-    {
-      "org": "충청북도 단양군",
-      "reason": "설치기준 별표를 찾지 못함",
-      "tried": [
-        "단양군 주차장 조례"
-      ]
-    },
-    {
-      "org": "충청북도 보은군",
-      "reason": "설치기준 별표를 찾지 못함",
-      "tried": [
-        "보은군 주차장 조례"
-      ]
-    },
-    {
-      "org": "충청북도 옥천군",
-      "reason": "설치기준 별표를 찾지 못함",
-      "tried": [
-        "옥천군 주차장 조례"
-      ]
-    },
-    {
       "org": "충청북도 제천시",
       "reason": "설치기준 별표를 찾지 못함",
       "tried": [
@@ -351,5 +113,5 @@
     }
   ],
   "urban_candidates": 81,
-  "parking_candidates": 127
+  "parking_candidates": 126
 }

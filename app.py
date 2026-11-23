@@ -13,7 +13,7 @@ from law_core_v2 import (CORE_PACK_ID, route_laws, preview_area, far_counted_are
 from ordinance_parse import CANON_ZONES
 from ordinance_regions import zone_limits_for, region_of, connected_count
 from sunlight_regions import setback as sun_setback, note as sun_note, region_data as sun_region_data
-from parking_regions import build as pk_build, parking_required_region, region_data as pk_region_data
+from parking_regions import build as pk_build, parking_required_region, region_data as pk_region_data, follows_decree as pk_follows
 from ordinance_daejeon import (is_daejeon, parking_required_daejeon, DJ_PARKING_RULES,
                                DJ_MANUAL_KEYS, DJ_UNDEFINED_KEYS, DJ_META, DJ_SUNLIGHT_NOTE, dj_sunlight_setback)
 
@@ -173,6 +173,8 @@ if "site_snapshot" in st.session_state:
         basis = "national"
         if use_local and pk_region == "대전광역시":
             basis = "daejeon"
+        elif use_local and pk_region and pk_follows(pk_region):
+            basis = "follows"
         elif use_local and pk_region and pk_region_data(pk_region):
             basis = "region"
         if use_local and basis == "national":
@@ -191,14 +193,28 @@ if "site_snapshot" in st.session_state:
             o = pr["ordinance"]
             st.caption(f"{o['name']} 설치기준 별표 (공포 {o['promulgation_no']}, 시행 {o['effective']}) 기준 신축 산술 시나리오. "
                        "용도변경·증축은 반영하지 않습니다. 공동주택·오피스텔 등 별도 규정을 인용하는 분류는 계산하지 않고 원문 표를 보여줍니다.")
+            if pr.get("incomplete") or pr.get("manual_heavy"):
+                st.warning("이 조례의 별표는 일부만 자동으로 읽었습니다. 목록에 없는 용도는 아래 '조례 별표 원문'으로 직접 확인하세요.")
+            with st.expander("조례 별표 원문"):
+                try:
+                    from pathlib import Path
+                    st.text(Path(pr["ordinance"]["annex_snapshot"]).read_text(encoding="utf-8"))
+                except Exception:
+                    st.caption("원문 사본을 불러오지 못했습니다: " + str(pr["ordinance"]["annex_snapshot"]))
             variant = 0
             if pr["columns"]:
                 variant = st.radio("조례 표의 열(대지 구역)", list(range(len(pr["columns"]))), horizontal=True,
                                    format_func=lambda i: pr["columns"][i], key=f"pk_variant_{pk_region}")
             rules, manual, special_fn, opts = pk_build(pk_region, variant)
         else:
+            if basis == "follows":
+                fd = pk_follows(pk_region)
+                st.success(f"{fd['ordinance']['name']}는 자체 기준표 없이 주차장법 시행령 별표 1을 따릅니다 ({fd['article']}).")
+                if fd.get("proviso"):
+                    st.warning("조례 단서(계산에 반영되지 않음): " + fd["proviso"])
             st.caption("주차장법 시행령 별표 1 (시행 2026-08-28) 기준 신축 산술 시나리오. 지자체 조례가 강화·완화할 수 있고 "
-                       "이 모드는 조례를 반영하지 않습니다.")
+                       "이 모드는 조례를 반영하지 않습니다." if basis == "national" else
+                       "주차장법 시행령 별표 1 (시행 2026-08-28) 기준 신축 산술 시나리오. 조례의 단서·예외는 반영하지 않습니다.")
             rules, manual, undefined = PARKING_RULES, PARKING_MANUAL_KEYS, {}
             opts = {k: f"{v[0]}호 {v[1]}" for k, v in rules.items()}
             opts.update({k: f"5호 {v}" for k, v in manual.items()})

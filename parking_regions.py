@@ -30,6 +30,12 @@ def region_data(region):
     return load()["regions"].get(region)
 
 
+def follows_decree(region):
+    """조례가 자체 별표 없이 주차장법 시행령 별표 1을 따른다고 정한 지역이면 그 데이터(조문·단서), 아니면 None."""
+    r = region_data(region)
+    return r if r and r.get("follows_decree") else None
+
+
 def _frac(x):
     return Fraction(str(x))
 
@@ -76,6 +82,9 @@ def parking_required_region(region, items, variant=0):
     r = region_data(region)
     if not r:
         return {"status": "UNKNOWN", "reason": f"{region} 주차장 조례 데이터 미연결"}
+    if r.get("follows_decree"):
+        return {"status": "UNKNOWN", "reason": f"{region} 조례는 자체 기준표 없이 주차장법 시행령 별표 1을 따름 — 시행령 기준(parking_required)으로 계산하고 조례 단서를 확인",
+                "law": r["ordinance"], "article": r.get("article"), "proviso": r.get("proviso")}
     rules, manual, special, display = build(region, variant)
     notes = []
     ncols = len(r["columns"])
@@ -93,6 +102,10 @@ def parking_required_region(region, items, variant=0):
                           "(조례 별표에 이 단서가 없어 영 별표 1 비고를 준용한 것 — 해석 확인 필요)"))
     if r["related_annexes"]:
         notes.append("이 조례에는 설치제한지역·특수지역 등 별도 별표가 있음 — 해당 지역이면 별도 확인: " + "; ".join(r["related_annexes"]))
+    if r.get("incomplete"):
+        notes.append("조례 별표의 일부 분류만 읽었을 수 있음 — 읽지 못한 용도는 원문 별표 전체로 확인")
+    if r.get("manual_heavy"):
+        notes.append("자동 계산하지 못한 분류가 계산 가능한 분류보다 많음 — 원문 별표 확인")
     if not r.get("rounding_half_rule"):
         notes.append("끝수 처리: 조례 별표에 비고가 없거나 일부만 있어 주차장법 시행령 별표 1 비고(0.5 이상 1대)를 적용")
     return parking_required(items, None, rules=rules, manual=manual, undefined=None,

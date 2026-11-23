@@ -3,7 +3,7 @@ import json
 import pathlib
 import unittest
 
-from ordinance_parking_parse import parse_parking_annex
+from ordinance_parking_parse import completeness, find_follow_decree, parse_parking_annex
 from ordinance_parse import CANON_ZONES, parse_article, parse_hwp_table, zone_table
 from ordinance_regions import region_of
 
@@ -72,18 +72,25 @@ class LocalZoneLimits(unittest.TestCase):
 class LocalParking(unittest.TestCase):
     DATA = json.loads(PARK_FILE.read_text(encoding="utf-8"))["regions"] if PARK_FILE.exists() else {}
 
+    def tables(self):
+        return {k: r for k, r in self.DATA.items() if not r.get("follows_decree")}
+
+    def follows(self):
+        return {k: r for k, r in self.DATA.items() if r.get("follows_decree")}
+
     def test_json_matches_annex_snapshot_reparse(self):
-        for key, r in self.DATA.items():
+        for key, r in self.tables().items():
             raw, body = read(r["ordinance"]["annex_snapshot"])
             self.assertNotIn("OC=", raw)
             parsed = parse_parking_annex(body)
             for field in ("columns", "categories", "notes", "small_house_rule", "rounding_half_rule"):
                 self.assertEqual(r[field], parsed[field], (key, field))
+            self.assertEqual({k: r[k] for k in ("incomplete", "manual_heavy")}, completeness(r["categories"]), key)
 
     def test_enough_computable_categories_and_manual_housing(self):
-        for key, r in self.DATA.items():
+        for key, r in self.tables().items():
             ok = [c for c in r["categories"] if c["kind"] in ("area", "per_unit", "detached")]
-            self.assertGreaterEqual(len(ok), 5, key)
+            self.assertGreaterEqual(len(ok), 3, key)
             for c in r["categories"]:
                 self.assertTrue(c["raw"].strip())
                 if "주택건설기준" in c["raw"]:
@@ -96,12 +103,66 @@ class LocalParking(unittest.TestCase):
 
     def test_area_divisors_are_plausible(self):
         """설치기준 ㎡당 1대 값은 현실적인 범위(20~2,000㎡)여야 한다 — 파싱 오류(자릿수 등) 탐지."""
-        for key, r in self.DATA.items():
+        for key, r in self.tables().items():
             for c in r["categories"]:
                 if c["kind"] == "area":
                     for rule in c["rules"]:
                         for v in rule["values"]:
                             self.assertTrue(20 <= float(v["div"]) <= 2000, (key, c["id"], v))
+
+    def test_follows_decree_entries_match_article_snapshot(self):
+        f = self.follows()
+        self.assertGreaterEqual(len(f), 5)
+        for key, r in f.items():
+            raw, body = read(r["ordinance"]["snapshot"])
+            self.assertNotIn("OC=", raw)
+            fd = find_follow_decree(body)
+            self.assertIsNotNone(fd, key)
+            self.assertEqual(fd["title"], r["article"], key)
+            self.assertEqual(fd["proviso"], r["proviso"], key)
+            self.assertEqual(r["categories"], [], key)
+
+    def test_known_follow_cases_from_reading_the_articles(self):
+        # 조문을 읽어 확인: 양구(영 별표 1과 같다, 단서=설치 면제), 서천/청양/태안/울진(영 별표 1 준용·따른다, 단서=공장 예외)
+        for city in ("강원특별자치도 양구군", "충청남도 서천군", "충청남도 청양군", "충청남도 태안군", "경상북도 울진군"):
+            self.assertTrue(self.DATA[city].get("follows_decree"), city)
+        # 시행령 표를 직접 고치거나(합천) 자체 규정이 있는(제천) 조례는 '그대로 따름'으로 인정하지 않는다
+        for city in ("경상남도 합천군", "충청북도 제천시"):
+            self.assertNotIn(city, self.follows())
+
+
+class FollowDecreeDetection(unittest.TestCase):
+    def art(self, body):
+        return "제13조(부설주차장의 설치기준)\n" + body + "\n제14조(다른 조문)\n내용\n"
+
+    def test_positive_cases(self):
+        for body in ("② 부설주차장의 설치기준은 영 별표 1과 같다. 다만, 공장은 500제곱미터당 1대로 한다.",
+                     "부설주차장의 설치기준은 「주차장법 시행령」 제6조제1항의 별표 1과 같다.",
+                     "부설주차장의 설치기준은 영 별표 1을 준용한다.",
+                     "설치대상 시설물종류 및 설치기준은 「주차장법 시행령」(이하 \"영\"이라 한다) 제6조제1항을 따른다."):
+            fd = find_follow_decree(self.art(body))
+            self.assertIsNotNone(fd, body)
+        self.assertIn("공장", find_follow_decree(self.art("설치기준은 영 별표 1과 같다. 다만, 공장은 500제곱미터당 1대로 한다."))["proviso"])
+
+    def test_negative_cases(self):
+        # 자체 별표를 인용
+        self.assertIsNone(find_follow_decree(self.art("설치기준은 별표 2와 같다.")))
+        # 시행령 표를 직접 수정하는 단서
+        self.assertIsNone(find_follow_decree(self.art(
+            "설치기준은 영 별표 1과 같다. 다만, 단독주택의 \"50㎡ 초과 150㎡ 이하\"를 \"100㎡ 초과 150㎡ 이하\"로 한다.")))
+        # 별도 기준을 정하면서 영 별표 1은 하한으로만 언급
+        self.assertIsNone(find_follow_decree(self.art(
+            "영 제6조제1항 단서에 따라 다음 각 호의 건축물의 부설주차장 설치기준은 다음과 같다(영 별표 1의 기준으로 산정한 주차대수 이상이 되도록 하여야 한다).")))
+        # 관계없는 조문(장애인 전용)
+        self.assertIsNone(find_follow_decree("제10조(장애인 전용주차구획의 설치기준)\n설치기준은 영 별표 1과 같다.\n"))
+
+
+class Completeness(unittest.TestCase):
+    def test_flags(self):
+        few = [{"kind": "area"}] * 3 + [{"kind": "manual"}] * 4
+        self.assertEqual(completeness(few), {"incomplete": True, "manual_heavy": True})
+        many = [{"kind": "area"}] * 8 + [{"kind": "manual"}]
+        self.assertEqual(completeness(many), {"incomplete": False, "manual_heavy": False})
 
 
 if __name__ == "__main__":
