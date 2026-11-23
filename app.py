@@ -83,7 +83,13 @@ use_floor = 0.0
 typical_floor = 0.0
 basement_floor = 0.0
 
+# 결과 화면 유지: 화면의 체크박스·선택 칸을 눌러도 앱이 다시 실행되므로(검색 버튼은 그 순간에만 True),
+# 검색한 주소를 session_state 에 기억해 두고 계속 같은 결과를 그린다. 새 검색을 누르면 조회 캐시를 비운다.
 if submitted:
+    st.session_state["active_address"] = address
+    st.session_state["site_cache"] = {}
+if st.session_state.get("active_address") is not None:
+    address = st.session_state["active_address"]
     district = {"미확인": None, "적용": True, "비적용": False}[district_choice]
     zones = []
     parcel_area = None
@@ -97,7 +103,10 @@ if submitted:
     elif address.strip():
         st.write(f"입력 주소: {address}")
         try:
-            site = lookup_site(address.strip())
+            _sc = st.session_state.setdefault("site_cache", {})
+            if address.strip() not in _sc:      # 클릭마다 VWorld 를 다시 부르지 않는다(새 검색 때만 조회)
+                _sc[address.strip()] = lookup_site(address.strip())
+            site = _sc[address.strip()]
             g, pc, ld, zr, pr = site["geocode"], site["parcel"], site["land"], site["zones"], site["plan"]
             if g["status"] == "ERROR":
                 st.warning(f"주소 좌표 조회 실패: {g['error']} — 용도지역·대지면적은 미확인으로 처리합니다.")
@@ -177,7 +186,7 @@ if submitted:
                 _margin = st.select_slider("CAD 범위 — 대상 필지 경계에서 바깥으로(m)", options=[100, 200, 300, 500], value=200, key="cad_margin")
                 _k1, _k2 = st.columns(2)
                 _sym = _k1.checkbox("수치지도에 기호(아이콘: 논·학교·수목 표시 등) 포함", value=False, key="ngii_symbols")
-                _txt = _k2.checkbox("수치지도에 문자(표고·지명·건물명) 포함", value=True, key="ngii_text")
+                _txt = _k2.checkbox("수치지도에 문자(표고·지명·건물명) 포함", value=False, key="ngii_text")
                 _origin = "parcel" if _mode.startswith("대상") else "absolute"
                 cd = _cad(map_xy[0], map_xy[1], map_pnu, _origin, _margin)
                 if cd["status"] == "OK":

@@ -83,7 +83,7 @@ class NgiiTests(unittest.TestCase):
         window = (221143, 409648, 221543, 410048)
         self.assertEqual(nd.find_sheets(window), ["공주090.dxf"])
         self.assertEqual(nd.find_sheets((900000, 900000, 900100, 900100)), [])
-        data, n = nd.clip_to_dxf(["공주090.dxf"], window, (221343.0, 409848.0), (-200, -215, "ORIGIN test"))
+        data, n = nd.clip_to_dxf(["공주090.dxf"], window, (221343.0, 409848.0), (-200, -215, "ORIGIN test"), include_text=True)
         self.assertEqual(n, 3)   # 창 안 선 2 + 문자 1 (창 밖 선·긴 선 제외 — 긴 선은 창과 겹쳐 포함될 수 있음)
 
     def test_export_ngii_layers_and_origin(self):
@@ -127,7 +127,7 @@ class ClipTests(unittest.TestCase):
             nd.import_file("a.dxf", make_dxf([((220000, 409848), (224000, 409848)), ((221343, 408500), (221343, 412000)),
                                                ((221300, 409800), (221400, 409800))], texts=[((221343, 409848), "안"), ((223500, 410500), "밖")]))
             window = (221143, 409648, 221543, 410048)
-            data, n = nd.clip_to_dxf(["a.dxf"], window, (221343.0, 409848.0))
+            data, n = nd.clip_to_dxf(["a.dxf"], window, (221343.0, 409848.0), include_text=True)
             doc = ezdxf.read(io.StringIO(data.decode("utf-8")))
             from ezdxf import bbox as eb
             ex = eb.extents(doc.modelspace())
@@ -161,20 +161,24 @@ class SymbolFilterTests(unittest.TestCase):
     def kinds(self, data):
         return Counter(e.dxftype() for e in ezdxf.read(io.StringIO(data.decode("utf-8"))).modelspace())
 
-    def test_default_removes_symbols_keeps_lines_and_text(self):
+    def test_default_keeps_only_lines(self):
         st = {}
         data, n = nd.clip_to_dxf(["s.dxf"], self.window, (0.0, 0.0), None, stats=st)
         k = self.kinds(data)
-        self.assertEqual((k["INSERT"], k["POINT"], k["LINE"] + k["LWPOLYLINE"], k["TEXT"]), (0, 0, 1, 1))
-        self.assertEqual(st, {"symbols_skipped": 3, "text_skipped": 0})
+        self.assertEqual((k["INSERT"], k["POINT"], k["LINE"] + k["LWPOLYLINE"], k["TEXT"]), (0, 0, 1, 0))
+        self.assertEqual(st, {"symbols_skipped": 3, "text_skipped": 1})
+
+    def test_text_can_be_included(self):
+        k = self.kinds(nd.clip_to_dxf(["s.dxf"], self.window, include_text=True)[0])
+        self.assertEqual(k["TEXT"], 1)
 
     def test_options(self):
         k = self.kinds(nd.clip_to_dxf(["s.dxf"], self.window, include_symbols=True)[0])
         self.assertEqual((k["INSERT"], k["POINT"]), (2, 1))
         st = {}
-        k = self.kinds(nd.clip_to_dxf(["s.dxf"], self.window, include_text=False, stats=st)[0])
-        self.assertEqual(k["TEXT"], 0)
-        self.assertEqual(st["text_skipped"], 1)
+        k = self.kinds(nd.clip_to_dxf(["s.dxf"], self.window, include_text=True, stats=st)[0])
+        self.assertEqual(k["TEXT"], 1)
+        self.assertEqual(st["text_skipped"], 0)
 
     def test_export_passes_flags_and_reports_stats(self):
         r = nd.export_ngii(127.2370, 36.2865, margin_m=300)
