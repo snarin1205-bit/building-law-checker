@@ -17,7 +17,7 @@ sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "tools"))
 import build_ordinance_data as bo  # noqa: E402
 import build_parking_data as bp  # noqa: E402
-from ordinance_parking_parse import parse_parking_annex  # noqa: E402
+from ordinance_parking_parse import completeness, find_follow_decree, parse_parking_annex  # noqa: E402
 from ordinance_parse import CANON_ZONES, article_block, parse_ordinance, zone_table  # noqa: E402
 
 TODAY = "2026-11-23"
@@ -26,7 +26,8 @@ CACHE.mkdir(parents=True, exist_ok=True)
 SIDO = r"(경기도|강원특별자치도|강원도|충청북도|충청남도|전북특별자치도|전라북도|전라남도|경상북도|경상남도|제주특별자치도)"
 ORG = re.compile(rf"^{SIDO}( \S+(시|군))?$")
 PARK_BAD = ("기금", "특별회계", "요금", "무료", "개방", "지원", "공영", "청사", "시장", "환승", "위원회", "운영", "전용", "공유",
-            "태양광", "재생", "관리공단", "시설관리", "민간", "주민", "거주자", "임시", "체납", "교통사업", "규칙", "수탁", "노상", "견인")
+            "태양광", "재생", "관리공단", "시설관리", "민간", "주민", "거주자", "임시", "체납", "교통사업", "규칙", "수탁", "노상", "견인",
+            "이륜", "자전거", "화물", "버스", "택시", "캠핑", "공원", "마을", "문화재", "관광지", "장애인")
 
 
 def cached(fn_name, **p):
@@ -199,10 +200,25 @@ def build_parking(report):
                 xml = ordinance_xml(r["mst"])
                 title, method, annex, related = annex_for_parking(xml)
                 if not annex:
+                    fd = find_follow_decree(bo.clean(xml))
+                    if fd:
+                        base = f"{slug(org)}_주차장조례_{r['eff']}"
+                        hdr = (f"# 출처: 법제처 국가법령정보센터 자치법규, 조회일 {TODAY}\n# 자치법규: {r['name']} ({org}) 공포번호 {r['pn']}, 시행일 {eff_iso(r['eff'])}, 자치법규일련번호 {r['mst']}\n"
+                               "# 부설주차장 설치기준이 주차장법 시행령 별표 1을 따른다고 정한 조문 발췌. 수정 금지.\n\n")
+                        (snaps / f"{base}_설치기준조문.txt").write_text(hdr + fd["excerpt"] + "\n", encoding="utf-8")
+                        out[org] = {"ordinance": {"name": r["name"], "org": org, "mst": r["mst"], "promulgation_no": r["pn"],
+                                                  "effective": eff_iso(r["eff"]), "snapshot": f"data/law_snapshots/local/{base}_설치기준조문.txt",
+                                                  "annex_snapshot": None, "annex_title": None, "annex_method": "article"},
+                                    "follows_decree": True, "article": fd["title"], "proviso": fd["proviso"],
+                                    "related_annexes": related, "columns": [], "categories": [], "notes": [],
+                                    "small_house_rule": False, "rounding_half_rule": False,
+                                    "incomplete": False, "manual_heavy": False}
+                        done = True
+                        break
                     continue
                 parsed = parse_parking_annex(annex)
                 n_ok = sum(1 for c in parsed["categories"] if c["kind"] in ("area", "per_unit", "detached"))
-                if n_ok < 5:
+                if n_ok < 3:
                     report["parking_failed"].append({"org": org, "name": r["name"], "ok_categories": n_ok, "total": len(parsed["categories"])})
                     done = True
                     break
@@ -216,7 +232,7 @@ def build_parking(report):
                                           "effective": eff_iso(r["eff"]), "snapshot": None,
                                           "annex_snapshot": f"data/law_snapshots/local/{base}_설치기준별표.txt",
                                           "annex_title": title, "annex_method": method},
-                            "related_annexes": related, **parsed}
+                            "related_annexes": related, **parsed, **completeness(parsed["categories"])}
                 done = True
                 break
             except Exception as e:

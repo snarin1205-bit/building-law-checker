@@ -232,6 +232,39 @@ class ParserRobustness(unittest.TestCase):
         self.assertEqual(r["categories"][0]["kind"], "manual")
 
 
+class HwpxText(unittest.TestCase):
+    def test_hwpx_paragraphs_in_document_order_and_nested_cells(self):
+        import io
+        import sys
+        import zipfile
+        sys.path.insert(0, str(ROOT / "tools"))
+        import build_ordinance_data as bo
+        ns = 'xmlns:hp="http://www.hancom.co.kr/hwpml/2011/paragraph"'
+        sec = (f'<?xml version="1.0"?><hs:sec xmlns:hs="http://www.hancom.co.kr/hwpml/2011/section" {ns}>'
+               '<hp:p><hp:run><hp:t>부설주차장 설치기준</hp:t></hp:run></hp:p>'
+               '<hp:p><hp:run><hp:tbl><hp:tr><hp:tc><hp:subList>'
+               '<hp:p><hp:run><hp:t>1. 위락시설</hp:t></hp:run></hp:p>'
+               '<hp:p><hp:run><hp:t>시설면적 70㎡당 1대</hp:t></hp:run></hp:p>'
+               '</hp:subList></hp:tc></hp:tr></hp:tbl></hp:run></hp:p></hs:sec>')
+        buf = io.BytesIO()
+        with zipfile.ZipFile(buf, "w") as z:
+            z.writestr("Contents/section0.xml", sec)
+        text = bo.hwpx_text(buf.getvalue())
+        self.assertEqual(text.splitlines(), ["부설주차장 설치기준", "1. 위락시설", "시설면적 70㎡당 1대"])
+        r = parse_parking_annex(text)
+        self.assertEqual(r["categories"][0]["rules"][0]["values"][0]["div"], "70")
+
+    def test_header_column_named_bigo_does_not_swallow_table(self):
+        txt = "[별표 6]\n부설주차장의 설치대상 시설물\n시설물\n설치기준\n비고\n1. 위락시설\n○ 시설면적 100㎡당 1대\n2. 창고시설\n○ 시설면적 400㎡당 1대\n"
+        r = parse_parking_annex(txt)
+        self.assertEqual([c["no"] for c in r["categories"]], ["1", "2"])
+
+    def test_maada_wording(self):
+        r = parse_parking_annex("1. 위락시설\n○시설면적 50㎡마다 1대\n2. 창고시설\n○시설면적 400㎡마다 1대\n")
+        self.assertEqual([c["kind"] for c in r["categories"]], ["area", "area"])
+        self.assertEqual(r["categories"][0]["rules"][0]["values"][0]["div"], "50")
+
+
 class SyncCoverage(unittest.TestCase):
     def test_sync_covers_parking_ordinances(self):
         import law_sync

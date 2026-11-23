@@ -39,7 +39,7 @@ def slice_annex(text):
     for i, l in enumerate(lines):
         if "부설주차장" in l and ("설치대상" in l or "설치기준" in l) and "제한" not in l:
             win = " ".join(lines[i:i + 4])
-            if "시설물" in win or "건축물" in win:
+            if "시설물" in win or "건축물" in win or "대상물" in win:
                 start = i - 1 if i > 0 and re.match(r"^\s*\[?\s*별표", lines[i - 1]) else i
                 break
     if start is None:
@@ -59,7 +59,10 @@ def annex_units(xml):
 def download_hwp_text(url):
     req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
     with urllib.request.urlopen(req, timeout=120) as r:
-        return bo.hwp_text(r.read())
+        data = r.read()
+    if data[:2] == b"PK":  # hwpx(zip+XML)
+        return bo.hwpx_text(data)
+    return bo.hwp_text(data)
 
 
 def parking_annex(xml):

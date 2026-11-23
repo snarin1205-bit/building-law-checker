@@ -110,6 +110,29 @@ def hwp_text(data):
     return "\n".join(l for l in "\n".join(out).splitlines() if l.strip())
 
 
+def hwpx_text(data):
+    """HWPX(zip+XML) 본문 텍스트: 문단(hp:p)마다 한 줄. 표 셀 안의 문단도 문서 순서대로 한 줄씩."""
+    import io
+    import xml.etree.ElementTree as ET
+    import zipfile
+    z = zipfile.ZipFile(io.BytesIO(data))
+    names = sorted((n for n in z.namelist() if re.match(r"Contents/section\d+\.xml$", n)),
+                   key=lambda n: int(re.search(r"(\d+)\.xml$", n).group(1)))
+    out = []
+    for n in names:
+        root = ET.fromstring(z.read(n))
+        ns_p = next((t[: t.index("}") + 1] for t in (e.tag for e in root.iter()) if t.endswith("}p")), "")
+        for p in root.iter(ns_p + "p"):
+            parts = []
+            for run in p.findall(ns_p + "run"):  # 직접 자식 run 만(중첩 표의 문단은 별도로 순회)
+                for t in run.findall(ns_p + "t"):
+                    parts.append("".join(t.itertext()))
+            line = "".join(parts).strip()
+            if line:
+                out.append(line)
+    return "\n".join(out)
+
+
 def annex_hwp_for(xml, article_no_hint="건폐율"):
     """별표 중 제목에 '건폐율'이 들어간 hwp 첨부를 내려받아 텍스트로."""
     for m in re.finditer(r"<별표단위[^>]*>.*?</별표단위>", xml, re.S):

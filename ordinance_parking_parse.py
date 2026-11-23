@@ -10,15 +10,15 @@ _BULLET = re.compile(r"^[\s○◦·‧ㆍ•\-ㆍ◎※▪■]+")
 _CAT = re.compile(r"^(\d+(?:[-의]\d+)?)\.\s*(.+)$")
 _DUP = re.compile(r"^\(?\s*(?:시설면적\s*[/÷]\s*[\d,.]+\s*㎡|[^()]*[/÷×]\s*[\d.]+[^()]*)\)?$")
 _SQM = r"(?:㎡|제곱미터|m2)"
-_AREA = re.compile(r"시설면적\s*([\d,]+)\s*" + _SQM + r"\s*당\s*1\s*대")
-_LAB_AREA = re.compile(r"^\s*([^:：]{1,60}?)\s*[:：]\s*시설면적\s*([\d,]+)\s*" + _SQM + r"\s*당\s*1\s*대")
+_AREA = re.compile(r"시설면적\s*([\d,]+)\s*" + _SQM + r"\s*(?:당|마다)\s*1\s*대")
+_LAB_AREA = re.compile(r"^\s*([^:：]{1,60}?)\s*[:：]\s*시설면적\s*([\d,]+)\s*" + _SQM + r"\s*(?:당|마다)\s*1\s*대")
 _GOLF = re.compile(r"골프장\s*[:：]?\s*1\s*홀\s*당\s*([\d.]+)\s*대")
 _RANGE_A = re.compile(r"골프연습장\s*[:：]?\s*1\s*타석\s*당\s*([\d.]+)\s*대")
-_RANGE_B = re.compile(r"골프연습장\s*[:：]?\s*([\d.]+)\s*타석\s*당\s*1\s*대")
-_POOL = re.compile(r"옥외수영장\s*[:：]?\s*정원\s*([\d,]+)\s*(?:인|명)\s*당\s*1\s*대")
-_STAND = re.compile(r"관람장\s*[:：]?\s*정원\s*([\d,]+)\s*(?:인|명)\s*당\s*1\s*대")
+_RANGE_B = re.compile(r"골프연습장\s*[:：]?\s*([\d.]+)\s*타석\s*(?:당|마다)\s*1\s*대")
+_POOL = re.compile(r"옥외수영장\s*[:：]?\s*정원\s*([\d,]+)\s*(?:인|명)\s*(?:당|마다)\s*1\s*대")
+_STAND = re.compile(r"관람장\s*[:：]?\s*정원\s*([\d,]+)\s*(?:인|명)\s*(?:당|마다)\s*1\s*대")
 _DET_LOWER = re.compile(r"50\s*" + _SQM + r"\s*초과\s*([\d,]+)\s*" + _SQM + r"\s*이하")
-_DET_STEP = re.compile(r"([\d,]+)\s*" + _SQM + r"\s*(?:를\s*)?초과(?:하는)?\s*([\d,]+)\s*" + _SQM + r"\s*당\s*1\s*대")
+_DET_STEP = re.compile(r"([\d,]+)\s*" + _SQM + r"\s*(?:를\s*)?초과(?:하는)?\s*([\d,]+)\s*" + _SQM + r"\s*(?:당|마다)\s*1\s*대")
 
 
 def _n(s):
@@ -37,7 +37,7 @@ def split_annex(text):
     last_primary = 0
     for l in lines:
         nl = _norm_line(l)
-        if re.match(r"^(비\s*고|<\s*비고\s*>|\[\s*비고\s*\]|※\s*비\s*고)", nl):
+        if (cats or cur) and re.match(r"^(비\s*고|<\s*비고\s*>|\[\s*비고\s*\]|※\s*비\s*고)", nl):
             in_notes = True
             if cur:
                 cats.append(cur); cur = None
@@ -185,3 +185,53 @@ def parse_parking_annex(text):
         "small_house_rule": bool(re.search(r"50\s*제곱미터\s*이하", notes_text) and re.search(r"100\s*제곱미터로\s*나눈", notes_text)),
         "rounding_half_rule": bool(re.search(r"0\.5\s*이상인\s*(?:경우|때)에는\s*이를\s*1로\s*본다", notes_text)),
     }
+
+
+# ---------------------------------------------------------------------------
+# 조례가 자체 별표 없이 '주차장법 시행령 별표 1'을 그대로 따르는 경우
+# 판정은 '설치기준이 영 별표 1과 같다/따른다/준용한다'로 직접 이어지는 문장만 인정한다.
+# 시행령 표를 직접 고치는 단서("…"를 "…"로 한다)가 있으면 그대로 따른다고 볼 수 없어 제외한다.
+# ---------------------------------------------------------------------------
+_ART = re.compile(r"^제\d+조(?:의\d+)?\s*\(([^)\n]*)\)", re.M)
+_ART_SKIP = ("장애인", "전용", "인근", "관리지역", "구조", "설비", "개방", "면제", "비용", "철거", "기계식", "무상", "보조", "융자")
+_SENT_SPLIT = re.compile(r"(?<=[다요])\.\s+|(?<=다\.)\s*|\n")
+_FOLLOW_A = re.compile(r"별표\s*1(?!\d)\s*(?:의\s*(?:기준|내용))?\s*(?:과|와)\s*같다")
+_FOLLOW_B = re.compile(r"별표\s*1(?!\d)\s*(?:의\s*기준)?\s*(?:을|를|에)?\s*(?:따른다|준용한다|따라\s*설치)")
+_FOLLOW_C = re.compile(r"제6조제1항\s*(?:의\s*규정\s*)?(?:을|를|에)\s*(?:따른다|준용한다)")  # '「주차장법 시행령」(이하 "영"이라 한다) 제6조제1항을 따른다' 형태 포함
+_OWN_ANNEX = re.compile(r"별표\s*(?!1(?!\d))\d+\s*(?:과|와)\s*같")  # 한글 앞에서는 \b 가 동작하지 않아 (?!\d) 사용
+_SUBST = re.compile(r"[“\"][^”\"]+[”\"]\s*(?:을|를)\s*[“\"][^”\"]+[”\"]\s*(?:으)?로\s*한다")
+_NOT_PLAIN = ("단서에 따라", "다음 각 호", "이상이 되도록", "범위에서")
+
+
+def find_follow_decree(text):
+    """반환: {title, excerpt, proviso} 또는 None. proviso 는 '다만' 이하 단서(예외·면제 등)로 계산에는 반영하지 않는다."""
+    for m in _ART.finditer(text):
+        title = m.group(1)
+        if "부설주차장" not in title or not re.search(r"설치|기준", title) or any(k in title for k in _ART_SKIP):
+            continue
+        nxt = _ART.search(text, m.end())
+        blk = text[m.start(): nxt.start() if nxt else m.start() + 1500]
+        flat = re.sub(r"\s+", " ", blk)
+        if _OWN_ANNEX.search(flat) or _SUBST.search(flat):
+            continue
+        ok = False
+        for sent in re.split(r"(?<=다)\.\s*", flat):
+            if not re.search(r"설치\s*기준", sent) or any(w in sent for w in _NOT_PLAIN):
+                continue
+            if not re.search(r"시행령|영\s*(?:제|별표)|\"영\"", sent):
+                continue
+            if _FOLLOW_A.search(sent) or _FOLLOW_B.search(sent) or _FOLLOW_C.search(sent):
+                ok = True
+                break
+        if not ok:
+            continue
+        pv = re.search(r"다만[^.]*\.?", flat)
+        return {"title": m.group(0).strip(), "excerpt": blk.strip()[:900], "proviso": pv.group(0).strip() if pv else ""}
+    return None
+
+
+def completeness(categories):
+    """표를 일부만 읽었을 가능성 표시: 읽은 분류가 8개 미만(영 별표 1은 10개 안팎)이거나, 계산 가능 분류보다 수동 분류가 많으면 경고."""
+    ok = sum(1 for c in categories if c["kind"] in ("area", "per_unit", "detached"))
+    manual = sum(1 for c in categories if c["kind"] == "manual")
+    return {"incomplete": len(categories) < 8, "manual_heavy": manual > ok}
