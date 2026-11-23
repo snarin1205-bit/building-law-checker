@@ -644,8 +644,14 @@ def _bullets(r):
 def _design(r):
     a = r.applied
     m = re.search(r"계획 (\d+)대 → (적합|부족\((\d+)대\))", a)
-    if m and r.key == "parking_count":
-        return f"법정 : {r.value:g}대\n계획 : {m.group(1)}대 ({'적합' if m.group(2) == '적합' else '부족 ' + m.group(3) + '대'})"
+    g = re.search(r"공모지침 법정 (\d+)대", a)
+    if r.key == "parking_count" and (m or g):
+        lines = [f"법정 : {r.value:g}대(조례)" if g else f"법정 : {r.value:g}대"]
+        if g:
+            lines.append(f"지침 : {g.group(1)}대")
+        if m:
+            lines.append(f"계획 : {m.group(1)}대 ({'적합' if m.group(2) == '적합' else '부족 ' + m.group(3) + '대'})")
+        return "\n".join(lines)
     m = re.search(r"→ (적합|초과\(부적합\)|초과\(제외 면적 확인\))", a)
     if m:
         return m.group(1).replace("초과(제외 면적 확인)", "초과(제외 면적 확인 필요)")

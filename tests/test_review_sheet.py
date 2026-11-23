@@ -319,6 +319,14 @@ class ReferenceTable(unittest.TestCase):
         d = {x["대상"]: x for x in reference_rows(rows)}["주차장 설치"]["설계기준"]
         self.assertIn("끝수 처리 확인 필요", d)
 
+    def test_guideline_parking_is_shown_next_to_ordinance_value(self):
+        rows = build_review(ReviewInput(**self.DJ, total_floor_area=13000.0, guideline_parking=140))
+        d = {x["대상"]: x for x in reference_rows(rows)}["주차장 설치"]["설계기준"]
+        self.assertEqual(d, "법정 : 130대(조례)\n지침 : 140대")
+        rows = build_review(ReviewInput(**self.DJ, total_floor_area=13000.0, guideline_parking=140, planned_parking=135))
+        d = {x["대상"]: x for x in reference_rows(rows)}["주차장 설치"]["설계기준"]
+        self.assertEqual(d, "법정 : 130대(조례)\n지침 : 140대\n계획 : 135대 (부족 5대)")
+
     def test_markdown_has_title_and_service_line(self):
         md = reference_markdown(build_review(ReviewInput(**self.DJ)), "대전 둔산 법규 검토")
         self.assertIn("# 관련법규 검토서", md)
