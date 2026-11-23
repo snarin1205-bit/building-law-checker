@@ -1,0 +1,6 @@
+{
+  "name": "building-law-checker-relay",
+  "private": true,
+  "description": "Vercel(서울 리전) VWorld 중계 함수 api/vworld.js 용. 앱 본체는 Streamlit(Python).",
+  "engines": { "node": "22.x" }
+}

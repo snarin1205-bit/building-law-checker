@@ -132,5 +132,83 @@ class GeocodeTests(unittest.TestCase):
                 os.environ["VWORLD_API_KEY"] = old
 
 
+class RelayTests(unittest.TestCase):
+    def _fake_http(self, payload=None, bad=None, status=200, text=""):
+        calls = []
+
+        def http_get(url, params=None, headers=None, timeout=None):
+            calls.append((url, params, headers))
+
+            class R:
+                status_code = status
+                def json(self_inner):
+                    if bad:
+                        raise ValueError("not json")
+                    return payload
+            R.text = text
+            return R()
+        http_get.calls = calls
+        return http_get
+
+    def test_geocode_via_relay_maps_params_and_sends_token(self):
+        http = self._fake_http({"response": {"status": "OK", "result": {"point": {"x": "127.1", "y": "36.2"}}}})
+        g = v.make_relay_getter("https://relay.example/api/vworld", "tok", http_get=http)
+        r = v.geocode("대전광역시 서구 둔산로 100", key="IGNORED", getter=g, sleep=0)
+        self.assertEqual(r["status"], "OK")
+        url, params, headers = http.calls[0]
+        self.assertEqual(url, "https://relay.example/api/vworld")
+        self.assertEqual(params, {"action": "geocode", "address": "대전광역시 서구 둔산로 100", "type": "parcel"})
+        self.assertEqual(headers["x-relay-token"], "tok")
+        self.assertNotIn("key", params)  # 키는 중계로 보내지 않는다
+
+    def test_zone_and_plan_via_relay(self):
+        http = self._fake_http({"response": {"status": "OK", "result": {"featureCollection": {
+            "features": [{"properties": {"uname": "중심상업지역"}}]}}}})
+        g = v.make_relay_getter("https://r/api/vworld", "tok", http_get=http)
+        self.assertEqual(v.lookup_zones(127.38, 36.35, key="k", getter=g, sleep=0)["names"], ["중심상업지역"])
+        v.lookup_district_plan(127.38, 36.35, key="k", getter=g, sleep=0)
+        self.assertEqual([c[1]["action"] for c in http.calls], ["zone", "plan"])
+        self.assertEqual((http.calls[0][1]["x"], http.calls[0][1]["y"]), ("127.38", "36.35"))
+
+    def test_relay_error_shapes_are_surfaced(self):
+        g = v.make_relay_getter("https://r/api/vworld", "tok", http_get=self._fake_http({"error": "unauthorized"}))
+        r = v.lookup_zones(1, 2, key="k", getter=g, retries=0, sleep=0)
+        self.assertEqual(r["status"], "ERROR")
+        self.assertIn("unauthorized", r["error"])
+        g = v.make_relay_getter("https://r/api/vworld", "tok", http_get=self._fake_http(
+            {"error": "upstream_failed", "detail": "ECONNRESET"}))
+        self.assertIn("ECONNRESET", v.lookup_zones(1, 2, key="k", getter=g, retries=0, sleep=0)["error"])
+
+    def test_non_json_includes_status_and_masked_snippet(self):
+        http = self._fake_http(bad=True, status=403, text="<html>Access denied 09AD1234-1234-1234-1234-123456789012</html>")
+        r = v.lookup_zones(1, 2, key="k", getter=lambda u, params=None, timeout=None: http(u, params=params), retries=0, sleep=0)
+        self.assertEqual(r["status"], "ERROR")
+        self.assertIn("HTTP 403", r["error"])
+        self.assertIn("Access denied", r["error"])
+        self.assertNotIn("09AD1234", r["error"])
+
+    def test_relay_env_makes_key_optional(self):
+        import os
+        saved = {k: os.environ.pop(k, None) for k in ("VWORLD_API_KEY", "VWORLD_RELAY_URL", "VWORLD_RELAY_TOKEN")}
+        try:
+            self.assertFalse(v.relay_configured())
+            self.assertEqual(v.lookup_zones(1, 2, getter=lambda *a, **k: None)["status"], "ERROR")  # 키·중계 모두 없음
+            os.environ["VWORLD_RELAY_URL"], os.environ["VWORLD_RELAY_TOKEN"] = "https://r/api/vworld", "tok"
+            self.assertTrue(v.relay_configured())
+            http = self._fake_http({"response": {"status": "NOT_FOUND"}})
+            g = v.make_relay_getter("https://r/api/vworld", "tok", http_get=http)
+            self.assertEqual(v.lookup_zones(1, 2, getter=g, sleep=0)["status"], "NOT_FOUND")  # 키 없이도 중계로 조회
+        finally:
+            for k in ("VWORLD_API_KEY", "VWORLD_RELAY_URL", "VWORLD_RELAY_TOKEN"):
+                os.environ.pop(k, None)
+                if saved[k] is not None:
+                    os.environ[k] = saved[k]
+
+    def test_relay_rejects_unknown_layer(self):
+        g = v.make_relay_getter("https://r/api/vworld", "tok", http_get=self._fake_http({}))
+        with self.assertRaises(ValueError):
+            g(v.DATA_URL, params={"data": "LT_C_ANYTHING", "geomFilter": "POINT(1 2)"})
+
+
 if __name__ == "__main__":
     unittest.main()
