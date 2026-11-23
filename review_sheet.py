@@ -6,6 +6,7 @@
 """
 import json
 import math
+import re
 import pathlib
 from dataclasses import dataclass, field, asdict
 from typing import List, Optional
@@ -593,3 +594,83 @@ def review_to_markdown(rows, context=None):
 
 def review_to_json(rows, context=None):
     return json.dumps({"context": context or {}, "rows": [r.as_dict() for r in rows]}, ensure_ascii=False, indent=2)
+
+
+# ---------------------------------------------------------------------------
+# 관련법규 검토서(설계공모 제출 양식): 법규명 및 조항 | 대상 | 법적 기준 | 설계기준 | 비고
+# ---------------------------------------------------------------------------
+_TARGET = {"건폐율 → 최대 건축면적": "대지안의 건폐율", "용적률 → 최대 연면적": "대지안의 용적률", "높이(층수)": "높이 기준",
+           "구조 안전의 확인": "구조안전 확인", "부설주차장 법정 대수": "주차장 설치", "장애인 전용주차구획": "장애인 전용주차",
+           "직통계단 2개소 이상 설치 대상": "직통계단의 설치", "직통계단까지 보행거리": "직통계단의 설치(보행거리)",
+           "조경 → 최소 조경면적": "대지의 조경", "정북방향 일조 이격": "정북방향 일조", "공개공지 등": "공개공지 등의 확보"}
+_ORDER = ["대지와 도로", "건폐율", "용적률", "높이", "최소 대지면적", "구조", "주차장", "장애인 전용", "직통계단", "방화구획", "조경", "공개공지", "일조", "주민 의견청취",
+          "장애인 편의", "신·재생", "가로구역", "대지 안의 공지", "심의"]
+_UNIT = {"max_building_area": ("법정 : 최대 건축면적 {v}㎡ 이하", 0), "max_floor_area": ("법정 : 최대 연면적 {v}㎡ 이하", 0), "parking_count": ("법정 : {v}대", 0),
+         "accessible_parking_min": ("법정 : {v}대 이상", 0), "landscape_min_area": ("법정 : {v}㎡ 이상", 0)}
+
+
+_SHORT = [("면제 대상", "면제"), ("건축 불허", "건축 불허"), ("대상 지역(", "대상 지역 아님"), ("대상이 아님", "대상 아님"), ("대상 아님", "비대상"), ("비대상", "비대상"),
+          ("법정 대상", "대상(설치 의무)"), ("주민 의견청취 대상", "대상(14일 이상 게시)"), ("방화구획 대상", "대상"), ("접해야 함", "대상(접도 확인)"),
+          ("2개소 이상 필요", "2개소 이상"), ("해당 없음", "해당 없음")]
+
+
+def _law_name(r):
+    t = re.sub(r"\s*\(시행[^)]*\)", "", r.basis)
+    return t.replace("개발제한구역법", "개발제한구역의 지정 및 관리에 관한 특별조치법").replace("영 제", "시행령 제") if "개발제한" in t else t
+
+
+def _bullets(r):
+    if (not r.standard or r.standard == "—") and r.notes:
+        return ["· " + r.notes[0]]
+    if not r.standard or r.standard == "—":
+        return ["· 별도 확인 필요"]
+    parts = [x.strip() for x in re.split(r"(?<=[.다요])\s+(?=[가-힣0-9「])|;\s*", r.standard) if x.strip()]
+    return [("· " + x) for x in (parts or [r.standard])] if r.standard and r.standard != "—" else ["· (해당 없음)"]
+
+
+def _design(r):
+    a = r.applied
+    m = re.search(r"계획 (\d+)대 → (적합|부족\((\d+)대\))", a)
+    if m and r.key == "parking_count":
+        return f"법정 : {r.value:g}대\n계획 : {m.group(1)}대 ({'적합' if m.group(2) == '적합' else '부족 ' + m.group(3) + '대'})"
+    m = re.search(r"→ (적합|초과\(부적합\)|초과\(제외 면적 확인\))", a)
+    if m:
+        return m.group(1).replace("초과(제외 면적 확인)", "초과(제외 면적 확인 필요)")
+    m2 = re.match(r"(\d+) 또는 (\d+)대", a)
+    if m2:
+        return f"법정 : {m2.group(1)} 또는 {m2.group(2)}대\n(끝수 처리 확인 필요)"
+    if r.status == "미연결":
+        return "미연결(확인 필요)"
+    if r.item == "구조 안전의 확인":
+        return "구조안전 확인 필요" if r.status != "확정" else "확인"
+    if r.item == "직통계단까지 보행거리":
+        return "50m 이하(내화·불연 구조)"
+    for sub, lab in _SHORT:
+        if sub in a:
+            return lab
+    if r.key in _UNIT and r.value is not None:
+        return _UNIT[r.key][0].format(v=f"{r.value:,.0f}" if float(r.value).is_integer() else f"{r.value:,.1f}")
+    if r.status == "미확인":
+        return "확인 필요"
+    head = a.split(" | ")[0]
+    return head if len(head) <= 70 else head[:68] + "…"
+
+
+def reference_rows(rows):
+    """검토서 행 → PDF 양식(5열). 대지 개요 행은 표가 아니라 머리말로 쓰므로 제외한다."""
+    pick = [r for r in rows if r.section != "대지 개요"]
+    pick.sort(key=lambda r: next((i for i, k in enumerate(_ORDER) if k in r.item or k in _TARGET.get(r.item, "")), len(_ORDER)))
+    out = []
+    for r in pick:
+        out.append({"법규명 및 조항": _law_name(r), "대상": _TARGET.get(r.item, r.item), "법적 기준": "\n".join(_bullets(r)),
+                    "설계기준": _design(r), "비고": r.status})
+    return out
+
+
+def reference_markdown(rows, title_line):
+    L = ["# 관련법규 검토서", "", f"□ 용 역 명 : {title_line}", "", "| 법규명 및 조항 | 대상 | 법적 기준 | 설계기준 | 비고 |", "|---|---|---|---|---|"]
+    esc = lambda x: str(x).replace("|", "/").replace("\n", "<br>")
+    for d in reference_rows(rows):
+        L.append(f"| {esc(d['법규명 및 조항'])} | {esc(d['대상'])} | {esc(d['법적 기준'])} | {esc(d['설계기준'])} | {esc(d['비고'])} |")
+    L += ["", "> 사전 검토용입니다. 비고: 확정 / 조건부(가정·추가 확인 필요) / 미확인(입력 부족) / 미연결(해당 법규 데이터 없음)"]
+    return "\n".join(L)

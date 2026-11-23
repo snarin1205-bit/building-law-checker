@@ -6,13 +6,14 @@ This app is for early design-stage screening, not permitting conclusions.
 import streamlit as st
 from building_law_checker import LAND_API_KEY
 from vworld_client import lookup_site, relay_configured
-from site_map import render_maps
+from site_map import render_maps, parcel_polygon
+from site_cad import export_cad
 from law_core_v2 import (CORE_PACK_ID, route_laws, preview_area, far_counted_area,
                          FAR_EXCLUSION_KEYS, sort_findings, findings_to_markdown,
                          findings_to_json, parking_required,
                          PARKING_RULES, PARKING_MANUAL_KEYS)
 from ordinance_parse import CANON_ZONES
-from review_sheet import _greenbelt as _gb_data, ReviewInput, USE_LABELS, build_review, review_to_json, review_to_markdown, summary_values
+from review_sheet import _greenbelt as _gb_data, reference_rows, reference_markdown, ReviewInput, USE_LABELS, build_review, review_to_json, review_to_markdown, summary_values
 from ordinance_regions import zone_limits_for, region_of, connected_count
 from sunlight_regions import setback as sun_setback, note as sun_note, region_data as sun_region_data
 from parking_regions import build as pk_build, parking_required_region, region_data as pk_region_data, follows_decree as pk_follows
@@ -22,6 +23,11 @@ from ordinance_daejeon import (is_daejeon, parking_required_daejeon, DJ_PARKING_
 @st.cache_data(show_spinner="지도를 불러오는 중...", ttl=3600)
 def _maps(x, y):
     return render_maps(x, y)
+
+
+@st.cache_data(show_spinner="CAD 파일을 만드는 중...", ttl=3600)
+def _cad(x, y, pnu):
+    return export_cad(x, y, pnu, parcel_polygon(x, y))
 
 
 st.set_page_config(page_title="현상설계 법규 분석 v2", page_icon="🏛️", layout="wide")
@@ -57,6 +63,7 @@ if submitted:
     parcel_area = None
     parcel_jimok = None
     map_xy = None
+    map_pnu = None
     in_gb = bool(gb_manual)
     st.subheader("1. 기본 자료 확인")
     if not LAND_API_KEY and not relay_configured():
@@ -72,6 +79,7 @@ if submitted:
                 st.warning("주소를 찾지 못했습니다(지번·도로명 모두 결과 없음). 주소 표기를 확인하세요.")
             else:
                 map_xy = (g["x"], g["y"])
+                map_pnu = pc.get("pnu")
                 if pc["status"] == "OK":
                     st.success(f"조회된 필지: {pc['addr']} (PNU {pc['pnu']}) — 입력한 주소와 같은 필지인지 확인하세요.")
                 elif pc["status"] == "ERROR":
@@ -138,6 +146,18 @@ if submitted:
             m1.image(mp["cadastral"], caption="지적도 — 빨간 선이 조회된 필지, 주황 선은 인접 필지 경계(지번 표기)", width="stretch")
             m2.image(mp["digital"], caption="수치지도(일반 지도)", width="stretch")
             st.caption("출처: 국토교통부 브이월드. 경계는 참고용이며 측량 성과가 아닙니다.")
+            if map_pnu:
+                cd = _cad(map_xy[0], map_xy[1], map_pnu)
+                if cd["status"] == "OK":
+                    c1, c2 = st.columns(2)
+                    c1.download_button("지적도 CAD(.dxf) 저장", cd["cadastral"], file_name="cadastral.dxf", mime="application/dxf")
+                    c2.download_button("수치지도 CAD(.dxf) 저장", cd["digital"], file_name="digital_map.dxf", mime="application/dxf")
+                    n_ = cd["counts"]
+                    st.caption(f"CAD 좌표계 {cd['epsg']}(중부원점 TM, 단위 m) · 필지 {n_.get('필지', 0)} / 건물 {n_.get('건물', 0)} / 도로 {n_.get('도로', 0)} / 용도지역 {n_.get('용도지역', 0)} · 대상 필지는 '대상필지' 레이어(빨강)")
+                    for note in cd["notes"]:
+                        st.warning(note)
+                else:
+                    st.warning(f"CAD 생성 실패: {cd['error']}")
             d1, d2 = st.columns(2)
             d1.download_button("지적도 PNG 저장", mp["cadastral"], file_name="cadastral.png", mime="image/png")
             d2.download_button("수치지도 PNG 저장", mp["digital"], file_name="digital_map.png", mime="image/png")
@@ -185,8 +205,12 @@ if submitted:
             c.metric(label, f"{v:,.0f}" if float(v).is_integer() else f"{v:,.1f}")
         if not total_floor and "max_floor_area" in vals:
             st.caption("연면적을 입력하지 않아 주차·조경·방화구획은 **용적률 상한 기준 최대 연면적을 가정**해 계산했습니다(상태: 조건부).")
-    st.table([{"구분": r.section, "법규명 및 조항": r.basis, "대상": r.item, "법적 기준": r.standard, "설계기준(이 대지 적용·계획)": r.applied,
-               "설계 영향": r.impact, "상태": r.status} for r in review_rows])
+    st.markdown("#### 관련법규 검토서")
+    st.caption(f"□ 용 역 명 : {address} 법규 검토")
+    st.table(reference_rows(review_rows))
+    with st.expander("상세 표 (근거 조문 전체 · 이 대지 적용값 · 설계 영향 · 상태)"):
+        st.table([{"구분": r.section, "법규명 및 조항": r.basis, "대상": r.item, "법적 기준": r.standard, "이 대지 적용값(계산)": r.applied,
+                   "설계 영향": r.impact, "상태": r.status} for r in review_rows])
     st.caption("상태: 확정(원문+입력으로 결정) · 조건부(가정·추가 확인 필요) · 미확인(입력 부족) · 미연결(해당 법규 데이터 없음 — 직접 확인)")
     sel = st.selectbox("항목별 비고·근거 원문 보기", [f"{r.section} · {r.item}" for r in review_rows], key="review_sel")
     chosen = review_rows[[f"{r.section} · {r.item}" for r in review_rows].index(sel)]
@@ -201,8 +225,9 @@ if submitted:
             st.caption("원문 사본을 불러오지 못했습니다: " + chosen.source)
     rctx = {"주소": address or "미입력", "용도지역": ", ".join(zones) if zones else "미확인", "주용도": building_use,
             "대지면적(㎡)": site_area or "미입력", "연면적(㎡)": total_floor or "미입력(용적률 상한 가정)"}
-    e1, e2 = st.columns(2)
-    e1.download_button("법규검토서 .md 저장", review_to_markdown(review_rows, rctx), file_name="law_review_sheet.md", mime="text/markdown")
+    e0, e1, e2 = st.columns(3)
+    e0.download_button("관련법규 검토서 .md 저장(제출 양식)", reference_markdown(review_rows, f"{address} 법규 검토"), file_name="관련법규_검토서.md", mime="text/markdown")
+    e1.download_button("상세 검토서 .md 저장", review_to_markdown(review_rows, rctx), file_name="law_review_sheet.md", mime="text/markdown")
     e2.download_button("법규검토서 .json 저장(수치 포함)", review_to_json(review_rows, rctx), file_name="law_review_sheet.json", mime="application/json")
 
     st.subheader("3. 법규군별 검토 우선순위 (참고)")

@@ -5,7 +5,7 @@ import unittest
 
 from ordinance_landscape_parse import find_open_space_article, kn, parse_landscape, pct_at
 from parking_regions import build as pk_build
-from review_sheet import (USES, USE_LABELS, ReviewInput, build_review, pick_parking, review_to_json, review_to_markdown,
+from review_sheet import (reference_markdown, reference_rows, USES, USE_LABELS, ReviewInput, build_review, pick_parking, review_to_json, review_to_markdown,
                           summary_values)
 from law_core_v2 import PARKING_RULES
 from ordinance_daejeon import DJ_PARKING_RULES
@@ -285,6 +285,45 @@ class ReferenceFormatRows(unittest.TestCase):
     def test_markdown_uses_reference_columns(self):
         md = review_to_markdown(build_review(ReviewInput(**self.DJ, total_floor_area=13000.0)))
         self.assertIn("| 법규명 및 조항 | 대상 | 법적 기준 |", md)
+
+
+class ReferenceTable(unittest.TestCase):
+    DJ = dict(address="대전광역시 서구 둔산로 100", zones=("중심상업지역",), use="업무시설", site_area=1000.0)
+
+    def test_five_columns_and_head_rows_excluded(self):
+        rows = build_review(ReviewInput(**self.DJ, total_floor_area=13000.0, planned_building_area=800.0, planned_parking=130))
+        ref = reference_rows(rows)
+        self.assertEqual(list(ref[0]), ["법규명 및 조항", "대상", "법적 기준", "설계기준", "비고"])
+        targets = [d["대상"] for d in ref]
+        self.assertNotIn("용도지역", targets)
+        self.assertEqual(targets[0], "대지와 도로와의 관계")   # 제출 양식 순서: 도로 → 건폐율 → 용적률 …
+        self.assertLess(targets.index("대지안의 건폐율"), targets.index("대지안의 용적률"))
+
+    def test_design_column_matches_reference_style(self):
+        rows = build_review(ReviewInput(**self.DJ, total_floor_area=13000.0, planned_building_area=800.0, planned_parking=130))
+        by = {d["대상"]: d for d in reference_rows(rows)}
+        self.assertEqual(by["대지안의 건폐율"]["설계기준"], "적합")
+        self.assertEqual(by["주차장 설치"]["설계기준"], "법정 : 130대\n계획 : 130대 (적합)")
+        self.assertTrue(by["대지안의 건폐율"]["법적 기준"].startswith("· "))
+        rows = build_review(ReviewInput(**self.DJ, total_floor_area=13000.0, planned_parking=120))
+        self.assertIn("부족 10대", {d["대상"]: d for d in reference_rows(rows)}["주차장 설치"]["설계기준"])
+
+    def test_unconnected_rows_are_labelled_not_blank(self):
+        by = {d["대상"]: d for d in reference_rows(build_review(ReviewInput(**self.DJ)))}
+        self.assertEqual(by["장애인 편의시설"]["설계기준"], "미연결(확인 필요)")
+        self.assertNotIn("해당 없음", by["장애인 편의시설"]["법적 기준"])
+        self.assertEqual(by["장애인 편의시설"]["비고"], "미연결")
+
+    def test_ambiguous_parking_is_short_and_flagged(self):
+        rows = build_review(ReviewInput(address="충청남도 계룡시 엄사면 번영3길 30", zones=("제2종일반주거지역",), use="업무시설", site_area=13098.5))
+        d = {x["대상"]: x for x in reference_rows(rows)}["주차장 설치"]["설계기준"]
+        self.assertIn("끝수 처리 확인 필요", d)
+
+    def test_markdown_has_title_and_service_line(self):
+        md = reference_markdown(build_review(ReviewInput(**self.DJ)), "대전 둔산 법규 검토")
+        self.assertIn("# 관련법규 검토서", md)
+        self.assertIn("□ 용 역 명 : 대전 둔산 법규 검토", md)
+        self.assertIn("| 법규명 및 조항 | 대상 | 법적 기준 | 설계기준 | 비고 |", md)
 
 
 if __name__ == "__main__":
