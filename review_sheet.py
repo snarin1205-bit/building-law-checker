@@ -663,14 +663,14 @@ def reference_rows(rows):
     out = []
     for r in pick:
         out.append({"법규명 및 조항": _law_name(r), "대상": _TARGET.get(r.item, r.item), "법적 기준": "\n".join(_bullets(r)),
-                    "설계기준": _design(r), "비고": r.status})
+                    "설계기준": _design(r)})
     return out
 
 
 def reference_markdown(rows, title_line):
-    L = ["# 관련법규 검토서", "", f"□ 용 역 명 : {title_line}", "", "| 법규명 및 조항 | 대상 | 법적 기준 | 설계기준 | 비고 |", "|---|---|---|---|---|"]
+    L = ["# 관련법규 검토서", "", f"□ 용 역 명 : {title_line}", "", "| 법규명 및 조항 | 대상 | 법적 기준 | 설계기준 |", "|---|---|---|---|"]
     esc = lambda x: str(x).replace("|", "/").replace("\n", "<br>")
     for d in reference_rows(rows):
-        L.append(f"| {esc(d['법규명 및 조항'])} | {esc(d['대상'])} | {esc(d['법적 기준'])} | {esc(d['설계기준'])} | {esc(d['비고'])} |")
-    L += ["", "> 사전 검토용입니다. 비고: 확정 / 조건부(가정·추가 확인 필요) / 미확인(입력 부족) / 미연결(해당 법규 데이터 없음)"]
+        L.append(f"| {esc(d['법규명 및 조항'])} | {esc(d['대상'])} | {esc(d['법적 기준'])} | {esc(d['설계기준'])} |")
+    L += ["", "> 사전 검토용입니다. 설계기준 칸의 '확인 필요'는 입력 부족, '미연결'은 해당 법규 데이터가 연결되지 않은 항목입니다."]
     return "\n".join(L)

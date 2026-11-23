@@ -293,7 +293,7 @@ class ReferenceTable(unittest.TestCase):
     def test_five_columns_and_head_rows_excluded(self):
         rows = build_review(ReviewInput(**self.DJ, total_floor_area=13000.0, planned_building_area=800.0, planned_parking=130))
         ref = reference_rows(rows)
-        self.assertEqual(list(ref[0]), ["법규명 및 조항", "대상", "법적 기준", "설계기준", "비고"])
+        self.assertEqual(list(ref[0]), ["법규명 및 조항", "대상", "법적 기준", "설계기준"])
         targets = [d["대상"] for d in ref]
         self.assertNotIn("용도지역", targets)
         self.assertEqual(targets[0], "대지와 도로와의 관계")   # 제출 양식 순서: 도로 → 건폐율 → 용적률 …
@@ -312,7 +312,7 @@ class ReferenceTable(unittest.TestCase):
         by = {d["대상"]: d for d in reference_rows(build_review(ReviewInput(**self.DJ)))}
         self.assertEqual(by["장애인 편의시설"]["설계기준"], "미연결(확인 필요)")
         self.assertNotIn("해당 없음", by["장애인 편의시설"]["법적 기준"])
-        self.assertEqual(by["장애인 편의시설"]["비고"], "미연결")
+        self.assertNotIn("비고", by["장애인 편의시설"])
 
     def test_ambiguous_parking_is_short_and_flagged(self):
         rows = build_review(ReviewInput(address="충청남도 계룡시 엄사면 번영3길 30", zones=("제2종일반주거지역",), use="업무시설", site_area=13098.5))
@@ -323,7 +323,7 @@ class ReferenceTable(unittest.TestCase):
         md = reference_markdown(build_review(ReviewInput(**self.DJ)), "대전 둔산 법규 검토")
         self.assertIn("# 관련법규 검토서", md)
         self.assertIn("□ 용 역 명 : 대전 둔산 법규 검토", md)
-        self.assertIn("| 법규명 및 조항 | 대상 | 법적 기준 | 설계기준 | 비고 |", md)
+        self.assertIn("| 법규명 및 조항 | 대상 | 법적 기준 | 설계기준 |", md)
 
 
 if __name__ == "__main__":
