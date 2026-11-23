@@ -192,6 +192,7 @@ def geocode(address, key=None, domain=None, getter=None, retries=2, sleep=1.0, t
 
 
 LAYER_PARCEL = "LP_PA_CBND_BUBUN"   # 연속지적도(필지)
+LAYER_GREENBELT = "LT_C_UD801"      # 개발제한구역
 NED_URL = "https://api.vworld.kr/ned/data/getLandCharacteristics"
 
 
@@ -287,9 +288,20 @@ def lookup_land(pnu, key=None, domain=None, getter=None, retries=2, sleep=1.0):
     return out
 
 
+def lookup_greenbelt(x, y, **kw):
+    """개발제한구역 여부. OK=구역 안(names 에 '개발제한구역'), NOT_FOUND=조회는 됐으나 구역 데이터 없음(법적 '구역 밖' 확정은 아님)."""
+    r = query_layer(LAYER_GREENBELT, x, y, **kw)
+    if r["status"] == "OK":
+        names = [n for n in r["names"] if "개발제한구역" in n]
+        if not names:
+            return {"status": "NOT_FOUND", "names": [], "error": None}
+        return {**r, "names": names}
+    return r
+
+
 def lookup_site(address, **kw):
     """주소 → 필지·대지면적·용도지역·지구단위계획 한 번에. 각 단계의 상태를 그대로 담는다(실패해도 앞 단계 결과는 보존)."""
-    res = {"geocode": geocode(address, **kw), "parcel": None, "land": None, "zones": None, "plan": None}
+    res = {"geocode": geocode(address, **kw), "parcel": None, "land": None, "zones": None, "plan": None, "greenbelt": None}
     g = res["geocode"]
     if g["status"] != "OK":
         return res
@@ -298,4 +310,5 @@ def lookup_site(address, **kw):
         res["land"] = lookup_land(res["parcel"]["pnu"], **kw)
     res["zones"] = lookup_zones(g["x"], g["y"], **kw)
     res["plan"] = lookup_district_plan(g["x"], g["y"], **kw)
+    res["greenbelt"] = lookup_greenbelt(g["x"], g["y"], **kw)
     return res

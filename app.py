@@ -11,7 +11,7 @@ from law_core_v2 import (CORE_PACK_ID, route_laws, preview_area, far_counted_are
                          findings_to_json, parking_required,
                          PARKING_RULES, PARKING_MANUAL_KEYS)
 from ordinance_parse import CANON_ZONES
-from review_sheet import ReviewInput, USE_LABELS, build_review, review_to_json, review_to_markdown, summary_values
+from review_sheet import _greenbelt as _gb_data, ReviewInput, USE_LABELS, build_review, review_to_json, review_to_markdown, summary_values
 from ordinance_regions import zone_limits_for, region_of, connected_count
 from sunlight_regions import setback as sun_setback, note as sun_note, region_data as sun_region_data
 from parking_regions import build as pk_build, parking_required_region, region_data as pk_region_data, follows_decree as pk_follows
@@ -34,6 +34,7 @@ with st.form("site_form"):
         total_floor = st.number_input("계획 연면적 (㎡) — 비우면 용적률 상한 기준으로 가정", min_value=0.0, value=0.0)
     with right:
         is_housing = st.checkbox("주택사업/정비사업")
+        gb_manual = st.checkbox("개발제한구역 안 (자동 조회가 안 될 때 직접 체크)")
         manual_zone = st.selectbox("용도지역 직접 선택 (자동 조회가 안 될 때만)",
                                    ["자동 조회 결과 사용"] + list(CANON_ZONES))
         district_choice = st.selectbox("지구단위계획 적용 여부(수동 확인)", ["미확인", "적용", "비적용"])
@@ -51,6 +52,7 @@ if submitted:
     zones = []
     parcel_area = None
     parcel_jimok = None
+    in_gb = bool(gb_manual)
     st.subheader("1. 기본 자료 확인")
     if not LAND_API_KEY and not relay_configured():
         st.error("VWORLD_API_KEY(또는 중계 설정 VWORLD_RELAY_URL/TOKEN)가 없어 주소·용도지역 조회를 건너뜁니다. 모든 대지 조건은 미확인 처리됩니다.")
@@ -81,6 +83,13 @@ if submitted:
                 if zr and zr["status"] == "ERROR":
                     st.warning(f"용도지역 조회 실패: {zr['error']}")
                 zones = pz + [z for z in lz if z not in pz]
+                gbr = site.get("greenbelt") or {}
+                if gbr.get("status") == "OK" or any("개발제한구역" in z for z in zones):
+                    in_gb = True
+                    st.warning("개발제한구역 안입니다. 건폐율·용적률·높이는 개발제한구역법 시행령 [별표 2] 기준으로 표시합니다(국토계획법 용도지역 조례 값은 참고).")
+                elif gbr.get("status") == "ERROR":
+                    st.warning(f"개발제한구역 조회 실패: {gbr['error']} — 필요하면 위의 '개발제한구역 안' 체크박스로 직접 지정하세요.")
+                zones = [z for z in zones if "개발제한구역" not in z]
                 if zones:
                     st.write("용도지역(점 조회 + 토지대장 합산):", ", ".join(zones))
                     if len(zones) > 1:
@@ -115,9 +124,20 @@ if submitted:
     _zl = zone_limits_for(address, zones) if zones else {"status": "NO_ZONE", "matches": []}
     if _zl["status"] == "NO_REGION":
         st.info("이 지역의 도시계획 조례가 연결되어 있지 않아 건폐율·용적률을 표시하지 못합니다(미연결).")
-    elif not site_area:
+    elif not site_area and not in_gb:
         st.info("대지면적을 알 수 없어 최대 건축면적·연면적을 계산하지 못합니다. 대지면적을 입력하세요.")
     rows1 = []
+    if in_gb:
+        _gbd = _gb_data().get("annex2", {})
+        if _gbd.get("status") == "ok":
+            _g = _gbd["general"]
+            rows1.append({"주소(필지)": address, "지목": parcel_jimok or "-", "대지면적(㎡)": f"{site_area:,.1f}" if site_area else "-",
+                          "용도지역": ", ".join(zones) + (" + " if zones else "") + "개발제한구역",
+                          "건폐율 상한": f"{_g['coverage_pct']}%", "용적률 상한": f"{_g['far_pct']}%", "높이": f"{_g['max_floors']}층 이하",
+                          "최대 건축면적(㎡)": f"{site_area*_g['coverage_pct']/100:,.1f}" if site_area else "-",
+                          "최대 연면적(㎡)": f"{site_area*_g['far_pct']/100:,.1f}" if site_area else "-"})
+            st.caption("개발제한구역법 시행령 [별표 2] 제2호가목 기준(일반 건축물). 주택·근린생활시설은 별도 기준, 허용 시설 여부·관리계획은 허가청 확인.")
+        _zl = {"status": "GB", "matches": []}
     for m in _zl.get("matches", []):
         cv, fr = m["coverage_max_pct"], m["far_max_pct"]
         rows1.append({"주소(필지)": address, "지목": parcel_jimok or "-", "대지면적(㎡)": f"{site_area:,.1f}" if site_area else "-",
@@ -134,7 +154,7 @@ if submitted:
                       typical_floor_area=typical_floor or None, basement_floor_area=basement_floor or None,
                       is_public=is_public, has_district_plan=district,
                       planned_building_area=covered or None, planned_parking=planned_parking or None,
-                      guideline_parking=guide_parking or None)
+                      guideline_parking=guide_parking or None, in_greenbelt=in_gb)
     review_rows = build_review(rin)
     st.subheader("2. 법규검토서 — 이 대지에서 지켜야 할 기준")
     vals = summary_values(review_rows)
